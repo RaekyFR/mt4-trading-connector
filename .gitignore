@@ -1,0 +1,19 @@
+# Node.js
+node_modules/
+.env
+npm-debug.log
+package-lock.json
+
+# MQL4/MT4
+*.ex4
+*.ex5
+*.log
+
+# Systèmes
+.DS_Store
+Thumbs.db
+
+# Autres
+.idea/
+.vscode/
+*.bak
