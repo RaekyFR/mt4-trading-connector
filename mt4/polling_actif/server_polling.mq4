@@ -3,7 +3,7 @@
 #include <mq4-http.mqh>
 #include <json.mqh>
 
-extern string hostIp = "192.168.1.100"; // IP de ton Raspberry Pi
+extern string hostIp = "127.0.0.1"; // IP de ton Raspberry Pi
 extern int hostPort = 8080;
 
 MqlNet INet;
