@@ -25,4 +25,5 @@
 ```bash
 cd nodejs/
 npm install
+npm install express
 node server.js
