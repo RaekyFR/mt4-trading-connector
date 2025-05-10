@@ -1,42 +1,46 @@
 const express = require('express');
 const bodyParser = require('body-parser');
 const app = express();
-const PORT = 8080;
 
+// Utilisation de body-parser pour analyser les données JSON envoyées dans les requêtes POST
 app.use(bodyParser.json());
-app.use(express.static('public'));
 
-let currentCommand = { command: "" };
-let latestBalance = null;
-
-// MT4 demande une commande
+// Route GET pour recevoir la commande de MT4
 app.get('/command', (req, res) => {
-  console.log('[MT4] ➤ Requête de commande reçue. Commande actuelle :', currentCommand.command);
-  res.json(currentCommand);
+    console.log('Requête reçue de MT4: ', req.method, req.url);
+
+    // Simule une commande (ici "getBalance") envoyée à MT4
+    const response = {
+        command: "getBalance"
+    };
+
+    // Répondre avec la commande demandée
+    res.json(response);
 });
 
-// MT4 envoie la balance
+// Route POST pour recevoir la balance du compte
 app.post('/balance', (req, res) => {
-  latestBalance = req.body.balance;
-  console.log('[MT4] ✅ Balance reçue :', latestBalance);
-  currentCommand = { command: "" }; // Réinitialiser la commande
-  res.sendStatus(200);
+    console.log('Requête POST reçue de MT4: ', req.method, req.url);
+    console.log('Données reçues (balance): ', req.body);
+
+    // Assurer que le corps de la requête contient la balance
+    if (req.body.balance) {
+        console.log('Balance reçue : ', req.body.balance);
+    } else {
+        console.log('Aucune balance envoyée');
+    }
+
+    // Répondre à MT4 (indiquant que la balance a été reçue)
+    const response = {
+        message: 'Balance reçue et traitée',
+        balance: req.body.balance
+    };
+
+    res.json(response);
 });
 
-// Interface Web envoie une commande
-app.post('/send-command', (req, res) => {
-  currentCommand = { command: "getBalance" };
-  latestBalance = null;
-  console.log('[WEB] 🟢 Commande "getBalance" envoyée à MT4');
-  res.json({ ok: true });
-});
-
-// Interface Web demande la dernière balance
-app.get('/last-balance', (req, res) => {
-  console.log('[WEB] 🔍 Requête de lecture de la balance. Valeur actuelle :', latestBalance);
-  res.json({ balance: latestBalance });
-});
-
-app.listen(PORT, () => {
-  console.log(`🚀 Serveur Node.js en ligne sur http://localhost:${PORT}`);
+// Démarrer le serveur sur le port 8080
+const port = 8080;
+app.listen(port, () => {
+    console.log(`Serveur Node.js en cours d'exécution sur http://127.0.0.1:${port}`);
 });
