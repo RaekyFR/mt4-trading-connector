@@ -1,60 +1,73 @@
 #property strict
 
-input string serverIp = "127.0.0.1"; //ip serveur node
-input int serverPort = 8080;
+input string serverIp = "127.0.0.1";  // Adresse de ton serveur
+input int serverPort = 8080;              // Port de ton serveur
 
-int socket;
-
-// Timer = requête toutes les secondes
+// Fonction d'initialisation de l'EA
 int OnInit() {
-   EventSetTimer(1);
+   EventSetTimer(1);  // Définir un timer qui appelle OnTimer toutes les secondes
    return INIT_SUCCEEDED;
 }
 
+// Fonction de désinitialisation de l'EA
 void OnDeinit(const int reason) {
-   EventKillTimer();
+   EventKillTimer();  // Arrêter le timer
 }
 
+// Fonction appelée à chaque intervalle de temps (chaque seconde)
 void OnTimer() {
-   socket = SocketCreate();
-   if (socket == INVALID_HANDLE) {
-      Print("Erreur création socket");
+   string url = "http://" + serverIp + ":" + IntegerToString(serverPort) + "/command";
+   string response = HttpGet(url);
+   
+   if (response == "") {
+      Print("Aucune réponse du serveur.");
       return;
    }
 
-   if (!SocketConnect(socket, serverIp, serverPort)) {
-      Print("Erreur connexion socket");
-      SocketClose(socket);
-      return;
-   }
+   Print("Réponse reçue : ", response);
 
-   string request = 
-      "GET /command HTTP/1.1\r\n"
-      "Host: " + serverIp + "\r\n"
-      "Connection: close\r\n\r\n";
-
-   int sent = SocketSend(socket, request);
-   if (sent != StringLen(request)) {
-      Print("Erreur envoi requête");
-      SocketClose(socket);
-      return;
-   }
-
-   string response = "";
-   char buffer[512];
-   int bytes;
-
-   while ((bytes = SocketRead(socket, buffer, sizeof(buffer))) > 0) {
-      response += CharArrayToString(buffer, 0, bytes);
-   }
-
-   SocketClose(socket);
-
-   // ✅ Traitement de la réponse brute
+   // Vérifier si la réponse contient la commande 'getBalance'
    if (StringFind(response, "getBalance") >= 0) {
-      Print("Commande reçue : getBalance");
-      // Tu pourrais ici appeler ta fonction de POST manuelle pour renvoyer la balance
+      double balance = AccountBalance();  // Récupérer la balance du compte
+      string payload = "{\"balance\":" + DoubleToString(balance, 2) + "}";
+      HttpPost("http://" + serverIp + ":" + IntegerToString(serverPort) + "/balance", payload);
+      Print("Balance envoyée : ", payload);
+   }
+}
+
+// Fonction pour effectuer une requête GET
+string HttpGet(string url) {
+   string headers = "Content-Type: application/json\r\n";
+   string response;
+   char postData[];
+   
+   // Effectuer la requête GET
+   int res = WebRequest("GET", url, postData, headers, response);
+
+   // Si WebRequest a réussi, renvoyer la réponse, sinon une chaîne vide
+   if (res == -1) {
+      Print("Erreur WebRequest GET : ", GetLastError());
+      return "";
+   }
+   return response;
+}
+
+// Fonction pour effectuer une requête POST
+void HttpPost(string url, string payload) {
+   string headers = "Content-Type: application/json\r\n";
+   string response;
+   char postData[];
+
+   // Convertir la chaîne payload en format char[]
+   StringToCharArray(payload, postData);
+
+   // Effectuer la requête POST
+   int res = WebRequest("POST", url, postData, headers, response);
+
+   // Vérifier le résultat de la requête POST
+   if (res == -1) {
+      Print("Erreur WebRequest POST : ", GetLastError());
    } else {
-      Print("Réponse serveur : ", response);
+      Print("Réponse après POST : ", response);
    }
 }
