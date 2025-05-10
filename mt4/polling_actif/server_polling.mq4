@@ -1,61 +1,60 @@
 #property strict
 
-#include <mq4-http.mqh>
-#include <json.mqh>
+input string serverIp = "127.0.0.1"; //ip serveur node
+input int serverPort = 8080;
 
-extern string hostIp = "127.0.0.1"; // IP de ton Raspberry Pi
-extern int hostPort = 8080;
+int socket;
 
-MqlNet INet;
-
-int init() {
-   EventSetTimer(1); // appel OnTimer toutes les secondes
-   return 0;
+// Timer = requête toutes les secondes
+int OnInit() {
+   EventSetTimer(1);
+   return INIT_SUCCEEDED;
 }
 
-int deinit() {
+void OnDeinit(const int reason) {
    EventKillTimer();
-   return 0;
 }
 
 void OnTimer() {
+   socket = SocketCreate();
+   if (socket == INVALID_HANDLE) {
+      Print("Erreur création socket");
+      return;
+   }
+
+   if (!SocketConnect(socket, serverIp, serverPort)) {
+      Print("Erreur connexion socket");
+      SocketClose(socket);
+      return;
+   }
+
+   string request = 
+      "GET /command HTTP/1.1\r\n"
+      "Host: " + serverIp + "\r\n"
+      "Connection: close\r\n\r\n";
+
+   int sent = SocketSend(socket, request);
+   if (sent != StringLen(request)) {
+      Print("Erreur envoi requête");
+      SocketClose(socket);
+      return;
+   }
+
    string response = "";
+   char buffer[512];
+   int bytes;
 
-   if (!INet.Open(hostIp, hostPort)) {
-      Print("Erreur de connexion au serveur");
-      return;
+   while ((bytes = SocketRead(socket, buffer, sizeof(buffer))) > 0) {
+      response += CharArrayToString(buffer, 0, bytes);
    }
 
-   if (!INet.Request("GET", "/command", response, false, true, "", false)) {
-      Print("Erreur lors de la requête GET");
-      return;
+   SocketClose(socket);
+
+   // ✅ Traitement de la réponse brute
+   if (StringFind(response, "getBalance") >= 0) {
+      Print("Commande reçue : getBalance");
+      // Tu pourrais ici appeler ta fonction de POST manuelle pour renvoyer la balance
+   } else {
+      Print("Réponse serveur : ", response);
    }
-
-   if (response == "" || StringFind(response, "{") < 0) return;
-
-   JSONParser *parser = new JSONParser();
-   JSONValue *jv = parser.parse(response);
-
-   if (jv == NULL) {
-      Print("Erreur de parsing JSON");
-      delete parser;
-      return;
-   }
-
-   JSONObject *jo = jv;
-   string command = jo.getString("command");
-
-   if (command == "getBalance") {
-      double balance = AccountBalance();
-      string payload = "{\"balance\":" + DoubleToString(balance, 2) + "}";
-      string postResponse = "";
-
-      if (INet.Request("POST", "/balance", postResponse, false, true, payload, false)) {
-         Print("Balance envoyée : ", payload);
-      } else {
-         Print("Erreur envoi balance");
-      }
-   }
-
-   delete parser;
 }
