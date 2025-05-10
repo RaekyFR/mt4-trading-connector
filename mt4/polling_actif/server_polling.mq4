@@ -1,7 +1,7 @@
 #property strict
 
-input string serverIp = "127.0.0.1";  // Adresse de ton serveur
-input int serverPort = 8080;              // Port de ton serveur
+input string serverIp = "127.0.0.1";  // Adresse du serveur local (localhost)
+input int serverPort = 8080;           // Port de ton serveur
 
 // Fonction d'initialisation de l'EA
 int OnInit() {
@@ -38,36 +38,43 @@ void OnTimer() {
 // Fonction pour effectuer une requête GET
 string HttpGet(string url) {
    string headers = "Content-Type: application/json\r\n";
-   string response;
-   char postData[];
-   
+   char result[];
+   string resultHeaders;
+   char postData[];  // Pas de données à envoyer pour GET
+
    // Effectuer la requête GET
-   int res = WebRequest("GET", url, postData, headers, response);
+   int res = WebRequest("GET", url, headers, 5000, postData, result, resultHeaders);
 
    // Si WebRequest a réussi, renvoyer la réponse, sinon une chaîne vide
    if (res == -1) {
       Print("Erreur WebRequest GET : ", GetLastError());
       return "";
    }
+
+   // Convertir le tableau result[] en string pour afficher la réponse
+   string response = CharArrayToString(result);
    return response;
 }
 
 // Fonction pour effectuer une requête POST
 void HttpPost(string url, string payload) {
    string headers = "Content-Type: application/json\r\n";
-   string response;
+   char result[];
+   string resultHeaders;
    char postData[];
 
    // Convertir la chaîne payload en format char[]
    StringToCharArray(payload, postData);
 
    // Effectuer la requête POST
-   int res = WebRequest("POST", url, postData, headers, response);
+   int res = WebRequest("POST", url, headers, 5000, postData, result, resultHeaders);
 
    // Vérifier le résultat de la requête POST
    if (res == -1) {
       Print("Erreur WebRequest POST : ", GetLastError());
    } else {
+      // Convertir le tableau result[] en string pour afficher la réponse
+      string response = CharArrayToString(result);
       Print("Réponse après POST : ", response);
    }
 }
