@@ -5,18 +5,35 @@ const folder = 'C:\\Users\\cyril\\AppData\\Roaming\\MetaQuotes\\Terminal\\56EE5B
 const commandFile = path.join(folder, 'command.txt');
 const responseFile = path.join(folder, 'response.txt');
 
+let waitingForResponse = false;
+let lastCommandTime = 0;
+const commandTimeout = 4000; // 4 secondes max pour recevoir une réponse
+
 function sendCommand(command) {
+  if (waitingForResponse) {
+    const now = Date.now();
+    if (now - lastCommandTime > commandTimeout) {
+      console.warn(`[Node ⚠️ ] Timeout - pas de réponse reçue pour la commande précédente`);
+      waitingForResponse = false;
+    } else {
+      return; // en attente, ne pas renvoyer encore
+    }
+  }
+
   fs.writeFileSync(commandFile, command);
-  console.log(`[Node] Commande envoyée : ${command}`);
+  lastCommandTime = Date.now();
+  waitingForResponse = true;
+  console.log(`[Node ⬆️ ] Commande envoyée : ${command}`);
 }
 
 function readResponse() {
-  if (!fs.existsSync(responseFile)) return;
+  if (!waitingForResponse || !fs.existsSync(responseFile)) return;
+
   const data = fs.readFileSync(responseFile, 'utf8').trim();
   if (data) {
-    console.log(`[Node] Réponse reçue : ${data}`);
-    // Optionnel : supprimer la réponse une fois lue
+    console.log(`[Node ✅ ] Réponse reçue : ${data}`);
     fs.unlinkSync(responseFile);
+    waitingForResponse = false;
   }
 }
 
