@@ -1,35 +1,40 @@
 const fs = require('fs');
 const path = require('path');
 const { folder } = require('../config');
+const { v4: uuidv4 } = require('uuid'); // npm install uuid
 
 const commandFile = path.join(folder, 'command.txt');
 
-let waitingForResponse = false;
-let lastCommandTime = 0;
+let currentCommand = null;
 
-function sendCommand(command, timeout) {
+function sendCommand(commandName, timeout) {
   const now = Date.now();
 
-  if (waitingForResponse && now - lastCommandTime < timeout) return false;
+  if (currentCommand && now - currentCommand.time < timeout) return false;
 
-  if (waitingForResponse) {
-    console.warn(`[Node ⚠️] Timeout sans réponse, nouvelle commande forcée`);
+  if (currentCommand) {
+    console.warn(`[Node ⚠️] Timeout de la commande ${currentCommand.id}`);
   }
 
-  fs.writeFileSync(commandFile, command);
-  lastCommandTime = now;
-  waitingForResponse = true;
+  const id = `cmd-${uuidv4()}`;
+  const command = {
+    id,
+    command: commandName
+  };
 
-  console.log(`[Node ⬆️] Commande envoyée : ${command}`);
+  fs.writeFileSync(commandFile, JSON.stringify(command));
+  currentCommand = { ...command, time: now };
+
+  console.log(`[Node ⬆️] Commande envoyée : ${JSON.stringify(command)}`);
   return true;
 }
 
-function clearWaitingFlag() {
-  waitingForResponse = false;
+function getCurrentCommand() {
+  return currentCommand;
 }
 
-function isWaiting() {
-  return waitingForResponse;
+function clearCurrentCommand() {
+  currentCommand = null;
 }
 
-module.exports = { sendCommand, isWaiting, clearWaitingFlag };
+module.exports = { sendCommand, getCurrentCommand, clearCurrentCommand };
