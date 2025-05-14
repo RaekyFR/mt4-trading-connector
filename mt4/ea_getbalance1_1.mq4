@@ -42,7 +42,7 @@ void OnTimer() {
       int idEnd = StringFind(raw, "\"", idStart);
       id = StringSubstr(raw, idStart, idEnd - idStart);
 
-      cmdStart += 10;
+      cmdStart += 11;
       int cmdEnd = StringFind(raw, "\"", cmdStart);
       cmd = StringSubstr(raw, cmdStart, cmdEnd - cmdStart);
    }
