@@ -14,5 +14,6 @@ void OnDeinit(const int reason) {
 
 void OnTimer() {
    string command = ReadCommand();
+   Print("commande = ", command);
    ProcessCommand(command);
 }
