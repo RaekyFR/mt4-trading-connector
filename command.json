@@ -3,10 +3,9 @@
     "command": "limitOrder",
     "data": {
       "symbol": "EURUSD",
-      "type": "buy limit",         // ou "sell limit"
+      "type": "buy limit",         
       "lot": 0.1,
-      "price": 1.0950,             // prix d’exécution souhaité
-      "sl": 30,
+      "price": 1.0950,             
       "tp": 60,
       "comment": "limit-entry"
     }
