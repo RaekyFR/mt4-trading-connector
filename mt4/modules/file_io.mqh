@@ -16,12 +16,12 @@ string ReadCommand() {
 }
 
 // Écrit une réponse dans response.txt
-void WriteResponse(string label, string value) {
+void WriteResponse(string id, string result) {
    int fileHandle = FileOpen(WRITE_FILE, FILE_WRITE | FILE_TXT);
    if (fileHandle == INVALID_HANDLE)
       return;
 
-   string output = label + "," + value;
+   string output = "{\"id\" : \""+id+"\" , \"result\" : \""+result+"\"}";
    FileWrite(fileHandle, output);
    FileClose(fileHandle);
 }
