@@ -12,6 +12,7 @@ string ReadCommand() {
 
    string command = FileReadString(fileHandle);
    FileClose(fileHandle);
+   FileDelete(READ_FILE);
    return StringTrim(command);
 }
 
