@@ -3,6 +3,7 @@
 
 #include <json_parser.mqh>
 #include <file_io.mqh>
+#include <error_utils.mqh>
 
 void ExecuteMarketOrder(string json, string id) {
    string symbol = GetJsonValue(json, "symbol");
@@ -42,8 +43,10 @@ void ExecuteMarketOrder(string json, string id) {
    int ticket = OrderSend(symbol, type, lot, price, 3, slPrice, tpPrice, comment, 0, 0, clrGreen);
 
    if (ticket < 0) {
-      int errCode = GetLastError();
-      string err = "Erreur OrderSend (" + IntegerToString(errCode) + ")";
+     // int errCode = GetLastError();
+     // string err = "Erreur OrderSend (" + IntegerToString(errCode) + ")";
+      string errorMsg = GetErrorText(GetLastError());
+      string err = "Erreur OrderSend (" + errorMsg + ")";
       WriteResponse("error", "{\"id\":\"" + id + "\",\"error\":\"" + err + "\"}");
 
    } else {
