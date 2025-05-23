@@ -22,7 +22,7 @@ void WriteResponse(string id, string result) {
    if (fileHandle == INVALID_HANDLE)
       return;
 
-   string output = "{\"id\" : \""+id+"\" , \"result\" : \""+result+"\"}";
+   string output = "{\"id\" : \""+id+"\" , \"result\" : "+result+"}";
    FileWrite(fileHandle, output);
    FileClose(fileHandle);
 }

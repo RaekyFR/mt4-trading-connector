@@ -19,12 +19,12 @@ void ExecuteMarketOrder(string json, string id) {
    if (typeStr == "buy") type = OP_BUY;
    else if (typeStr == "sell") type = OP_SELL;
    else {
-      WriteResponse("error", "{\"id\":\"" + id + "\",\"error\":\"Type d'ordre invalide\"}");
+      WriteResponse(id, "{\"error\" : \"Type d'ordre invalide\"");
       return;
    }
 
    if (lot <= 0 || symbol == "") {
-      WriteResponse("error", "{\"id\":\"" + id + "\",\"error\":\"Paramètres invalides\"}");
+      WriteResponse(id, "{\"error\":\"Paramètres invalides\"}");
       return;
    }
 
@@ -34,23 +34,26 @@ void ExecuteMarketOrder(string json, string id) {
 
    if (sl > 0) {
       slPrice = (type == OP_BUY) ? price - sl * Point : price + sl * Point;
+      Print("SlPrice : ",slPrice);
    }
 
    if (tp > 0) {
       tpPrice = (type == OP_BUY) ? price + tp * Point : price - tp * Point;
+      Print("tpPrice : ",tpPrice);
    }
 
-   int ticket = OrderSend(symbol, type, lot, price, 3, slPrice, tpPrice, comment, 0, 0, clrGreen);
+  // int ticket = OrderSend(symbol, type, lot, price, 3, slPrice, tpPrice, comment, 0, 0, clrGreen);
+   int ticket = OrderSend(symbol, type, lot, price, 3, sl, tp, comment, 0, 0, clrGreen);
 
    if (ticket < 0) {
      // int errCode = GetLastError();
      // string err = "Erreur OrderSend (" + IntegerToString(errCode) + ")";
       string errorMsg = GetErrorText(GetLastError());
       string err = "Erreur OrderSend (" + errorMsg + ")";
-      WriteResponse("error", "{\"id\":\"" + id + "\",\"error\":\"" + err + "\"}");
+      WriteResponse(id,"{\"error\":\"" + err + "\"}");
 
    } else {
-      WriteResponse("result", "{\"id\":\"" + id + "\",\"ticket\":" + IntegerToString(ticket) + "}");
+      WriteResponse(id,"{\"ticket\":" + IntegerToString(ticket) + "}");
    }
 }
 #endif
