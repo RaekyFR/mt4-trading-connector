@@ -32,8 +32,8 @@ string cmd1 = GetJsonValue(cmd, "command");
 // Inclusion des commandes spécifiques
 #include <commands/market_order.mqh>
 #include <commands/limit_order.mqh>
-#include <commands/close_all_orders.mqh>
 #include <commands/get_balance.mqh>
+#include <commands/close_all_market_orders.mqh>
 // Ajoute ici d'autres commandes au fur et à mesure...
 
 // Fonction principale appelée depuis OnTimer
@@ -59,11 +59,14 @@ void ProcessCommand(string json) {
       ExecuteLimitOrder(json, id);
    }
    else if (cmd == "closeAllMarketOrders") {
-      ExecuteCloseAllOrders(json, id);
+      ExecuteCloseAllMarketOrders(json, id);
+   }
+      else if (cmd == "closeMarketOrder") {
+      ExecuteCloseMarketOrder(json, id);
    }
    else {
       Print("Commande inconnue : ", cmd);
-      WriteResponse("error", "{\"id\":\"" + id + "\",\"error\":\"Commande inconnue\"}");
+      WriteResponse(id, "{\"error\":\"Commande inconnue\"}");
    }
 }
 
