@@ -33,17 +33,19 @@ void ExecuteMarketOrder(string json, string id) {
    double tpPrice = 0;
 
    if (sl > 0) {
-      slPrice = (type == OP_BUY) ? price - sl * Point : price + sl * Point;
+      //slPrice = (type == OP_BUY) ? price - sl * Point : price + sl * Point;
+      slPrice = sl;
       Print("SlPrice : ",slPrice);
    }
 
    if (tp > 0) {
-      tpPrice = (type == OP_BUY) ? price + tp * Point : price - tp * Point;
+      //tpPrice = (type == OP_BUY) ? price + tp * Point : price - tp * Point;
+      tpPrice = tp;
       Print("tpPrice : ",tpPrice);
    }
 
-  // int ticket = OrderSend(symbol, type, lot, price, 3, slPrice, tpPrice, comment, 0, 0, clrGreen);
-   int ticket = OrderSend(symbol, type, lot, price, 3, sl, tp, comment, 0, 0, clrGreen);
+   int ticket = OrderSend(symbol, type, lot, price, 3, slPrice, tpPrice, comment, 0, 0, clrGreen);
+  // int ticket = OrderSend(symbol, type, lot, price, 3, sl, tp, comment, 0, 0, clrGreen);
 
    if (ticket < 0) {
      // int errCode = GetLastError();
