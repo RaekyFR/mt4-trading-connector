@@ -1,27 +1,28 @@
-const fs = require('fs');
-const path = require('path');
+require("dotenv").config();
+const fs = require("fs");
+const path = require("path");
 
 // 🔧 Met ici le chemin vers ton dossier MQL4/Files
-const folder = 'C:\\Users\\cyril\\AppData\\Roaming\\MetaQuotes\\Terminal\\56EE5B2C68594C11EBC44B2E705CB8B7\\MQL4\\Files';
-const commandFile = path.join(folder, 'command.txt');
-const responseFile = path.join(folder, 'response.txt');
+const folder = process.env.FOLDER_PATH;
+const commandFile = path.join(folder, "command.txt");
+const responseFile = path.join(folder, "response.txt");
 
 const orderId = `close-all-${Date.now()}`;
 
 function sendCommand() {
   const command = {
     id: orderId,
-    command: "closeAllMarketOrders"
+    command: "closeAllMarketOrders",
   };
 
-  fs.writeFileSync(commandFile, JSON.stringify(command), 'utf8');
+  fs.writeFileSync(commandFile, JSON.stringify(command), "utf8");
   console.log(`[Node ⬆️] Commande envoyée : closeAllMarketOrders`);
 }
 
 function readResponse() {
   if (!fs.existsSync(responseFile)) return;
 
-  const content = fs.readFileSync(responseFile, 'utf8');
+  const content = fs.readFileSync(responseFile, "utf8");
   try {
     const json = JSON.parse(content);
 
