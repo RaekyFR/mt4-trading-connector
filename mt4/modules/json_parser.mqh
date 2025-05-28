@@ -3,7 +3,7 @@
 
 // 🔹 Extraction d'une valeur string depuis un JSON simple
 string GetJsonValue(string json, string key) {
-   Print("dans json_parser GetJsonValue, key :",key)
+   Print("dans json_parser GetJsonValue, key :",key);
    string pattern = "\"" + key + "\"";
    int keyPos = StringFind(json, pattern);
    if (keyPos == -1) return "";
@@ -22,7 +22,7 @@ string GetJsonValue(string json, string key) {
 
 // 🔹 Extraction d'une valeur numérique depuis un JSON simple
 double GetJsonNumber(string json, string key) {
-      Print("dans json_parser GetJsonNumber, key :",key)
+      Print("dans json_parser GetJsonNumber, key :",key);
    string pattern = "\"" + key + "\"";
    int keyPos = StringFind(json, pattern);
    if (keyPos == -1) return 0;
@@ -45,6 +45,7 @@ double GetJsonNumber(string json, string key) {
    }
 
    string numberStr = StringSubstr(json, valueStart, valueEnd - valueStart);
+   Print("dans json_parser GetJsonNumber, key :"+key+" valeur: "+numberStr);
    return StrToDouble(numberStr);
 }
 
