@@ -1,28 +1,3 @@
-/*#ifndef __COMMAND_HANDLER_MQH__
-#define __COMMAND_HANDLER_MQH__
-
-#include <file_io.mqh>  // Nécessaire pour WriteResponse
-#include <json_parser.mqh>
-
-void ProcessCommand(string cmd) {
-   if (cmd == "") return;
-
-   // Affichage dans le journal pour débogage
-   Print("Commande reçue : ", cmd);
-
-string cmd1 = GetJsonValue(cmd, "command");
-
-   if (cmd1 == "getBalance") {
-      double balance = AccountBalance();
-      WriteResponse("balance", DoubleToString(balance, 2));
-   }
-   else {
-      WriteResponse("error", "Commande inconnue : " + cmd1);
-   }
-}
-
-#endif */
-
 #ifndef __COMMAND_HANDLER_MQH__
 #define __COMMAND_HANDLER_MQH__
 
@@ -37,6 +12,8 @@ string cmd1 = GetJsonValue(cmd, "command");
 #include <commands/close_market_order.mqh>
 #include <commands/close_all_pending_orders.mqh>
 #include <commands/close_pending_order.mqh>
+#include <commands/get_all_market_orders.mqh>
+
 // Ajoute ici d'autres commandes au fur et à mesure...
 
 // Fonction principale appelée depuis OnTimer
@@ -72,6 +49,9 @@ void ProcessCommand(string json) {
    }
    else if (cmd == "closePendingOrder") {
       ExecuteClosePendingOrder(json, id);
+   }
+      else if (cmd == "getAllMarketOrders") {
+      ExecuteGetAllMarketOrders(json, id);
    }
    else {
       Print("Commande inconnue : ", cmd);
