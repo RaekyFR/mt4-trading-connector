@@ -13,6 +13,7 @@
 #include <commands/close_all_pending_orders.mqh>
 #include <commands/close_pending_order.mqh>
 #include <commands/get_all_market_orders.mqh>
+#include <commands/get_all_pending_orders.mqh>
 
 // Ajoute ici d'autres commandes au fur et à mesure...
 
@@ -50,8 +51,11 @@ void ProcessCommand(string json) {
    else if (cmd == "closePendingOrder") {
       ExecuteClosePendingOrder(json, id);
    }
-      else if (cmd == "getAllMarketOrders") {
+   else if (cmd == "getAllMarketOrders") {
       ExecuteGetAllMarketOrders(json, id);
+   }
+   else if (cmd == "getAllPendingOrders") {
+      ExecuteGetAllPendingOrders(json, id);
    }
    else {
       Print("Commande inconnue : ", cmd);
