@@ -8,7 +8,7 @@ const commandFile = path.join(folder, "command.txt");
 const responseFile = path.join(folder, "response.txt");
 
 const orderId = `close-one-${Date.now()}`;
-const ticketNumber = 123456; // 🔧 Remplace par un ticket réel à fermer
+const ticketNumber = 77604815; // 🔧 Remplace par un ticket réel à fermer
 
 function sendCommand() {
   const command = {

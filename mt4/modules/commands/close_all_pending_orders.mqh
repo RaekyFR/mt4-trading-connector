@@ -26,7 +26,7 @@ void ExecuteCloseAllPendingOrders(string json, string id) {
       }
    }
 
-   string response = "{"deleted\":" + IntegerToString(deletedCount) + ",\"errors\":" + IntegerToString(errorsCount) + "}";
+   string response = "{\"deleted\":" + IntegerToString(deletedCount) + ",\"errors\":" + IntegerToString(errorsCount) + "}";
    WriteResponse(id, response);
 }
 
