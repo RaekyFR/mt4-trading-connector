@@ -32,4 +32,14 @@ string StringTrim(string str) {
    return StringTrimLeft(StringTrimRight(str));
 }
 
+string ReadPingCommand() {
+   int fileHandle = FileOpen("command-ping.txt", FILE_READ | FILE_TXT);
+   if (fileHandle == INVALID_HANDLE) return "";
+
+   string command = FileReadString(fileHandle);
+   FileClose(fileHandle);
+   FileDelete("command-ping.txt");
+   return StringTrim(command);
+}
+
 #endif
