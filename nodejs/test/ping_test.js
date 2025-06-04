@@ -32,6 +32,19 @@ function readResponse() {
   } catch (err) {
     console.error("[Node ❌] Erreur JSON :", err.message);
   }
+
+  if (fs.existsSync(responseFile)) {
+  const size = fs.statSync(responseFile).size;
+  console.log("📁 Fichier trouvé, taille :", size);
+
+  if (size === 0) {
+    console.warn("⚠️ Le fichier est vide. Attente ou bug MT4 ?");
+    return;
+  }
+
+  const content = fs.readFileSync(responseFile, 'utf8');
+  console.log("📄 Contenu brut :", content);
+}
 }
 
 sendCommand();
