@@ -34,7 +34,7 @@ void ProcessCommand(string json) {
    if (cmd == "marketOrder") {
       ExecuteMarketOrder(json, id);
    }
-      if (cmd == "getBalance") {
+   else if (cmd == "getBalance") {
       ExecuteGetBalance(id);
    }
    else if (cmd == "limitOrder") {
