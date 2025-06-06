@@ -20,12 +20,12 @@ void ExecuteLimitOrder(string json, string id) {
    if (typeStr == "buy limit") type = OP_BUYLIMIT;
    else if (typeStr == "sell limit") type = OP_SELLLIMIT;
    else {
-      WriteResponse("error", "{\"id\":\"" + id + "\",\"error\":\"Type d'ordre limite invalide\"}");
+      WriteResponse(id, "{\"error\":\"Type d'ordre limite invalide\"}");
       return;
    }
 
    if (lot <= 0 || symbol == "" || price <= 0) {
-      WriteResponse("error", "{\"id\":\"" + id + "\",\"error\":\"Paramètres invalides\"}");
+      WriteResponse(id, "{\"error\":\"Paramètres invalides\"}");
       return;
    }
 

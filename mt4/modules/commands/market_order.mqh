@@ -19,7 +19,7 @@ void ExecuteMarketOrder(string json, string id) {
    if (typeStr == "buy") type = OP_BUY;
    else if (typeStr == "sell") type = OP_SELL;
    else {
-      WriteResponse(id, "{\"error\" : \"Type d'ordre invalide\"");
+      WriteResponse(id, "{\"error\":\"Type d'ordre invalide\"}");
       return;
    }
 

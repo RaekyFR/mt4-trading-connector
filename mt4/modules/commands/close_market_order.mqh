@@ -20,7 +20,7 @@ void ExecuteCloseMarketOrder(string json, string id) {
 
    int type = OrderType();
    if (type != OP_BUY && type != OP_SELL) {
-      WriteResponse(id, "\"error\":\"L'ordre n'est pas un ordre marché\"}");
+      WriteResponse(id, "{\"error\":\"L'ordre n'est pas un ordre marché\"}");
       return;
    }
 

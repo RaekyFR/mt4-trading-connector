@@ -24,7 +24,6 @@ void ExecuteGetAllPendingOrders(string json, string id) {
       response += "\"openPrice\":" + DoubleToString(OrderOpenPrice(), Digits) + ",";
       response += "\"sl\":" + DoubleToString(OrderStopLoss(), Digits) + ",";
       response += "\"tp\":" + DoubleToString(OrderTakeProfit(), Digits) + ",";
-      response += "\"price\":" + DoubleToString(OrderOpenPrice(), Digits) + ",";
       response += "\"magic\":" + IntegerToString(OrderMagicNumber());
       response += "}";
    }
