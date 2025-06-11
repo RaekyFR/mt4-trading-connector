@@ -1,8 +1,9 @@
 # Node.js
 node_modules/
 .env
-npm-debug.log
-package-lock.json
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
 # MQL4/MT4
 *.ex4
@@ -12,6 +13,15 @@ package-lock.json
 # Systèmes
 .DS_Store
 Thumbs.db
+
+# Prisma
+prisma/dev.db
+prisma/dev.db-journal
+.prisma/
+
+# Logs
+logs/
+*.log
 
 # Autres
 .idea/

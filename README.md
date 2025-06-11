@@ -1,29 +1,18 @@
+# 📊 Trading Bot MT4 + Node.js + Prisma
 
----
+Automatisation d'ordres sur MetaTrader 4 via des signaux externes (TradingView) et une stratégie définie en base de données.
 
-## ⚡ Technologies utilisées
+## 🔧 Stack
 
-- Node.js (serveur TCP, réception Webhooks TradingView)
-- MQL4 (MetaTrader 4 - Expert Advisor client TCP)
-- PostgreSQL (gestion base de données)
-- Bootstrap 5 (future interface web simplifiée)
+- Node.js
+- Prisma ORM
+- SQLite
+- MetaTrader 4
+- Fichiers de communication MT4 ↔ Node.js
 
----
+## 🚀 Démarrage
 
-## 🔥 Fonctionnement rapide
-
-1. **TradingView** envoie un signal via webhook (ports 80/443).
-2. **Node.js** capture le signal et le transforme au format JSON.
-3. **EA MT4 (client TCP)** se connecte et reçoit les ordres en direct.
-4. **MT4** passe les ordres de trading automatiquement.
-
----
-
-## 🚀 Comment démarrer ?
-
-### Node.js (serveur)
 ```bash
-cd nodejs/
 npm install
-npm install express
-node server.js
+npx prisma migrate dev --name init
+npm run dev
