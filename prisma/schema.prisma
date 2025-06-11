@@ -8,53 +8,55 @@ datasource db {
 }
 
 model Symbol {
-  id       Int      @id @default(autoincrement())
-  name     String   @unique
-  orders   Order[]
+  id      Int      @id @default(autoincrement())
+  name    String   @unique
+  orders  Order[]
+  signals Signal[]
 }
 
 model Signal {
-  id        Int      @id @default(autoincrement())
-  symbol    Symbol   @relation(fields: [symbolId], references: [id])
-  symbolId  Int
-  direction String
-  score     Int
+  id         Int      @id @default(autoincrement())
+  symbol     Symbol   @relation(fields: [symbolId], references: [id])
+  symbolId   Int
+  direction  String
+  score      Int
   receivedAt DateTime @default(now())
+  orders     Order[]
 }
 
 model Strategy {
-  id          Int      @id @default(autoincrement())
-  name        String
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  rules       StrategyRule[]
-  orders      Order[]
+  id        Int            @id @default(autoincrement())
+  name      String
+  isActive  Boolean        @default(true)
+  createdAt DateTime       @default(now())
+  rules     StrategyRule[]
+  orders    Order[]
 }
 
 model StrategyRule {
-  id          Int      @id @default(autoincrement())
-  strategy    Strategy @relation(fields: [strategyId], references: [id])
-  strategyId  Int
-  field       String
-  operator    String
-  value       String
+  id         Int      @id @default(autoincrement())
+  strategy   Strategy @relation(fields: [strategyId], references: [id])
+  strategyId Int
+  field      String
+  operator   String
+  value      String
 }
 
 model Order {
-  id          Int      @id @default(autoincrement())
-  strategy    Strategy @relation(fields: [strategyId], references: [id])
-  strategyId  Int
-  signal      Signal?  @relation(fields: [signalId], references: [id])
-  signalId    Int?
-  symbol      Symbol   @relation(fields: [symbolId], references: [id])
-  symbolId    Int
-  type        String
-  lot         Float
-  sl          Float
-  tp          Float
-  ticketMt4   Int?
-  comment     String?
-  state       String
-  openedAt    DateTime?
-  closedAt    DateTime?
+  id         Int       @id @default(autoincrement())
+  strategy   Strategy  @relation(fields: [strategyId], references: [id])
+  strategyId Int
+  signal     Signal?   @relation(fields: [signalId], references: [id])
+  signalId   Int?
+  symbol     Symbol    @relation(fields: [symbolId], references: [id])
+  symbolId   Int
+  type       String
+  lot        Float
+  sl         Float
+  tp         Float
+  ticketMt4  Int?
+  comment    String?
+  state      String
+  openedAt   DateTime?
+  closedAt   DateTime?
 }
