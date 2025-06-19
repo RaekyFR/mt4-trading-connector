@@ -10,53 +10,73 @@ datasource db {
 model Symbol {
   id      Int      @id @default(autoincrement())
   name    String   @unique
-  orders  Order[]
   signals Signal[]
-}
-
-model Signal {
-  id         Int      @id @default(autoincrement())
-  symbol     Symbol   @relation(fields: [symbolId], references: [id])
-  symbolId   Int
-  direction  String
-  score      Int
-  receivedAt DateTime @default(now())
-  orders     Order[]
+  orders  Order[]
 }
 
 model Strategy {
-  id        Int            @id @default(autoincrement())
-  name      String
-  isActive  Boolean        @default(true)
-  createdAt DateTime       @default(now())
-  rules     StrategyRule[]
-  orders    Order[]
+  id          Int              @id @default(autoincrement())
+  name        String
+  isActive    Boolean          @default(true)
+  createdAt   DateTime         @default(now())
+  rules       StrategyRule[]
+  signals     Signal[]
+  orders      Order[]
 }
 
 model StrategyRule {
-  id         Int      @id @default(autoincrement())
-  strategy   Strategy @relation(fields: [strategyId], references: [id])
-  strategyId Int
-  field      String
-  operator   String
-  value      String
+  id          Int      @id @default(autoincrement())
+  strategy    Strategy @relation(fields: [strategyId], references: [id])
+  strategyId  Int
+  field       String   // ex: "confidence", "hour"
+  operator    String   // ">", "=", "IN", etc.
+  value       String
+  type        String   // "signal", "time", "symbol"
+}
+
+model Signal {
+  id           Int       @id @default(autoincrement())
+  symbol       Symbol    @relation(fields: [symbolId], references: [id])
+  symbolId     Int
+  strategy     Strategy? @relation(fields: [strategyId], references: [id])
+  strategyId   Int?
+
+  action       String     // "open", "close", "modify"
+  direction    String     // "buy", "sell"
+  type         String     // "market", "limit"
+  entryPrice   Float?
+  sl           Float?
+  tp           Float?
+  lot          Float?
+  comment      String?
+  source       String?    // "tradingview", "custom"
+  confidence   Int?
+  receivedAt   DateTime   @default(now())
+
+  ordersOpened Order[]    @relation("SignalOpensOrders")
+  ordersClosed Order[]    @relation("SignalClosesOrders")
 }
 
 model Order {
-  id         Int       @id @default(autoincrement())
-  strategy   Strategy  @relation(fields: [strategyId], references: [id])
-  strategyId Int
-  signal     Signal?   @relation(fields: [signalId], references: [id])
-  signalId   Int?
-  symbol     Symbol    @relation(fields: [symbolId], references: [id])
-  symbolId   Int
-  type       String
-  lot        Float
-  sl         Float
-  tp         Float
-  ticketMt4  Int?
-  comment    String?
-  state      String
-  openedAt   DateTime?
-  closedAt   DateTime?
+  id               Int       @id @default(autoincrement())
+  symbol           Symbol    @relation(fields: [symbolId], references: [id])
+  symbolId         Int
+  strategy         Strategy? @relation(fields: [strategyId], references: [id])
+  strategyId       Int?
+
+  signalOpen       Signal?   @relation("SignalOpensOrders", fields: [signalOpenId], references: [id])
+  signalOpenId     Int?
+
+  signalClose      Signal?   @relation("SignalClosesOrders", fields: [signalCloseId], references: [id])
+  signalCloseId    Int?
+
+  ticketMt4        Int?
+  comment          String?
+  lot              Float
+  sl               Float?
+  tp               Float?
+  type             String    // "buy", "sell"
+  state            String    // "en_attente", "ouvert", "ferme", etc.
+  openedAt         DateTime?
+  closedAt         DateTime?
 }
