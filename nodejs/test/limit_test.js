@@ -17,9 +17,9 @@ function sendLimitOrder() {
     symbol: "BTCUSD",
     type: "buy limit", // ou "sell limit"
     lot: 0.01,
-    price: 106000, // à adapter au marché
+    price: 109000, // à adapter au marché
     sl: 105000,
-    tp: 110000,
+    tp: 120000,
     comment: "test limit depuis Node",
   };
 

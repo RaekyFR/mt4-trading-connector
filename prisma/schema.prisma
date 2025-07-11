@@ -1,3 +1,6 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -7,76 +10,258 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model Symbol {
-  id      Int      @id @default(autoincrement())
-  name    String   @unique
-  signals Signal[]
-  orders  Order[]
+// ==================== STRATEGIES ====================
+model Strategy {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  isActive    Boolean  @default(true)
+  
+  // Risk parameters par stratégie
+  maxDailyLoss      Float?   // % max de perte par jour
+  maxPositions      Int      @default(1)
+  maxLotSize        Float    @default(0.1)
+  defaultRiskPercent Float   @default(1.0) // % du capital par trade
+  
+  // Trading parameters
+  allowedSymbols    String   // JSON array ["EURUSD", "GBPUSD"]
+  tradingHours      String?  // JSON object {"start": "08:00", "end": "22:00"}
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  signals     Signal[]
+  orders      Order[]
+  riskConfigs RiskConfig[]
 }
 
-model Strategy {
-  id          Int              @id @default(autoincrement())
-  name        String
-  isActive    Boolean          @default(true)
-  createdAt   DateTime         @default(now())
-  rules       StrategyRule[]
-  signals     Signal[]
+// ==================== SIGNALS ====================
+model Signal {
+  id          String   @id @default(cuid())
+  strategyId  String
+  
+  // Signal data from TradingView
+  action      String   // "buy", "sell", "close"
+  symbol      String
+  price       Float?   // Prix suggéré (peut être null pour market order)
+  stopLoss    Float?
+  takeProfit  Float?
+  
+  // Risk management
+  suggestedLot Float?
+  calculatedLot Float?  // Après calcul du risk manager
+  riskAmount   Float?   // Montant risqué en $
+  
+  // Processing
+  status      SignalStatus @default(PENDING)
+  processedAt DateTime?
+  errorMessage String?
+  
+  // Metadata
+  rawData     String   // JSON complet du webhook
+  source      String   @default("tradingview")
+  
+  createdAt   DateTime @default(now())
+  
+  strategy    Strategy @relation(fields: [strategyId], references: [id])
   orders      Order[]
 }
 
-model StrategyRule {
-  id          Int      @id @default(autoincrement())
-  strategy    Strategy @relation(fields: [strategyId], references: [id])
-  strategyId  Int
-  field       String   // ex: "confidence", "hour"
-  operator    String   // ">", "=", "IN", etc.
-  value       String
-  type        String   // "signal", "time", "symbol"
+enum SignalStatus {
+  PENDING
+  VALIDATED
+  REJECTED
+  PROCESSED
+  ERROR
 }
 
-model Signal {
-  id           Int       @id @default(autoincrement())
-  symbol       Symbol    @relation(fields: [symbolId], references: [id])
-  symbolId     Int
-  strategy     Strategy? @relation(fields: [strategyId], references: [id])
-  strategyId   Int?
-
-  action       String     // "open", "close", "modify"
-  direction    String     // "buy", "sell"
-  type         String     // "market", "limit"
-  entryPrice   Float?
-  sl           Float?
-  tp           Float?
-  lot          Float?
-  comment      String?
-  source       String?    // "tradingview", "custom"
-  confidence   Int?
-  receivedAt   DateTime   @default(now())
-
-  ordersOpened Order[]    @relation("SignalOpensOrders")
-  ordersClosed Order[]    @relation("SignalClosesOrders")
-}
-
+// ==================== ORDERS ====================
 model Order {
-  id               Int       @id @default(autoincrement())
-  symbol           Symbol    @relation(fields: [symbolId], references: [id])
-  symbolId         Int
-  strategy         Strategy? @relation(fields: [strategyId], references: [id])
-  strategyId       Int?
+  id          String   @id @default(cuid())
+  signalId    String?
+  strategyId  String
+  
+  // MT4 data
+  ticket      Int?     @unique
+  symbol      String
+  type        OrderType
+  lots        Float
+  openPrice   Float?
+  closePrice  Float?
+  stopLoss    Float?
+  takeProfit  Float?
+  
+  // Status
+  status      OrderStatus @default(PENDING)
+  mt4Status   String?     // Status retourné par MT4
+  
+  // Results
+  profit      Float?
+  commission  Float?
+  swap        Float?
+  
+  // Risk tracking
+  riskAmount  Float?   // Montant risqué
+  riskPercent Float?   // % du capital risqué
+  
+  // Timestamps
+  openTime    DateTime?
+  closeTime   DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Error handling
+  errorMessage String?
+  retryCount  Int      @default(0)
+  
+  signal      Signal?  @relation(fields: [signalId], references: [id])
+  strategy    Strategy @relation(fields: [strategyId], references: [id])
+  riskMetrics RiskMetric[]
+}
 
-  signalOpen       Signal?   @relation("SignalOpensOrders", fields: [signalOpenId], references: [id])
-  signalOpenId     Int?
+enum OrderType {
+  BUY
+  SELL
+  BUY_LIMIT
+  SELL_LIMIT
+  BUY_STOP
+  SELL_STOP
+}
 
-  signalClose      Signal?   @relation("SignalClosesOrders", fields: [signalCloseId], references: [id])
-  signalCloseId    Int?
+enum OrderStatus {
+  PENDING      // En attente d'envoi à MT4
+  SENDING      // En cours d'envoi
+  PLACED       // Placé sur MT4
+  FILLED       // Exécuté
+  PARTIAL      // Partiellement exécuté
+  CANCELLED    // Annulé
+  CLOSED       // Fermé
+  ERROR        // Erreur
+}
 
-  ticketMt4        Int?
-  comment          String?
-  lot              Float
-  sl               Float?
-  tp               Float?
-  type             String    // "buy", "sell"
-  state            String    // "en_attente", "ouvert", "ferme", etc.
-  openedAt         DateTime?
-  closedAt         DateTime?
+// ==================== RISK METRICS ====================
+model RiskMetric {
+  id          String   @id @default(cuid())
+  orderId     String?
+  
+  // Account metrics au moment du trade
+  balance     Float
+  equity      Float
+  margin      Float
+  freeMargin  Float
+  marginLevel Float?
+  
+  // Risk metrics
+  openPositions Int
+  totalExposure Float   // Exposition totale en lots
+  totalRisk     Float   // Risque total en $
+  dailyPnL      Float   // P&L du jour
+  weeklyPnL     Float   // P&L de la semaine
+  monthlyPnL    Float   // P&L du mois
+  
+  // Correlations
+  correlationData String? // JSON des corrélations entre positions
+  
+  timestamp   DateTime @default(now())
+  
+  order       Order?   @relation(fields: [orderId], references: [id])
+  
+  @@index([timestamp])
+}
+
+// ==================== RISK CONFIGURATION ====================
+model RiskConfig {
+  id          String   @id @default(cuid())
+  strategyId  String?
+  
+  // Global limits
+  maxDailyLoss      Float    @default(5.0)    // % max de perte par jour
+  maxWeeklyLoss     Float    @default(10.0)   // % max de perte par semaine
+  maxMonthlyLoss    Float    @default(20.0)   // % max de perte par mois
+  maxDrawdown       Float    @default(15.0)   // % max de drawdown
+  
+  // Position limits
+  maxTotalPositions Int      @default(5)      // Nb max de positions ouvertes
+  maxPositionsPerSymbol Int   @default(2)     // Nb max par symbole
+  maxLotSize        Float    @default(1.0)    // Lot max par position
+  maxTotalExposure  Float    @default(5.0)    // Exposition totale max en lots
+  
+  // Risk per trade
+  defaultRiskPercent Float    @default(1.0)   // % du capital par trade
+  maxRiskPercent    Float     @default(2.0)   // % max du capital par trade
+  useKellyCriterion Boolean   @default(false) // Utiliser Kelly pour sizing
+  
+  // Correlation limits
+  maxCorrelation    Float     @default(0.7)   // Corrélation max entre positions
+  correlationPeriod Int       @default(20)    // Période pour calcul corrélation
+  
+  // Time restrictions
+  tradingHours      String?   // JSON {"monday": {"start": "08:00", "end": "22:00"}, ...}
+  blockedDates      String?   // JSON array ["2024-12-25", "2024-01-01"]
+  
+  // Safety
+  stopTradingOnLoss Boolean   @default(true)  // Arrêter si limite atteinte
+  requireConfirmation Boolean  @default(false) // Confirmation manuelle requise
+  
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  strategy    Strategy? @relation(fields: [strategyId], references: [id])
+}
+
+// ==================== AUDIT LOG ====================
+model AuditLog {
+  id          String   @id @default(cuid())
+  
+  action      String   // "signal_received", "order_placed", "risk_limit_hit", etc.
+  entityType  String   // "signal", "order", "risk_config"
+  entityId    String?
+  
+  details     String   // JSON avec détails de l'action
+  severity    LogSeverity @default(INFO)
+  
+  userId      String?  // Pour traçabilité future
+  ipAddress   String?
+  
+  createdAt   DateTime @default(now())
+  
+  @@index([entityType, entityId])
+  @@index([createdAt])
+}
+
+enum LogSeverity {
+  DEBUG
+  INFO
+  WARNING
+  ERROR
+  CRITICAL
+}
+
+// ==================== ACCOUNT STATE ====================
+model AccountState {
+  id          String   @id @default(cuid())
+  
+  // MT4 Account info
+  accountNumber Int?
+  broker        String?
+  currency      String   @default("USD")
+  
+  // Current state
+  balance       Float
+  equity        Float
+  margin        Float
+  freeMargin    Float
+  marginLevel   Float?
+  
+  // Statistics
+  totalTrades   Int      @default(0)
+  winRate       Float?
+  profitFactor  Float?
+  sharpeRatio   Float?
+  
+  // Last update
+  lastUpdate    DateTime @default(now())
+  
+  @@index([lastUpdate])
 }
