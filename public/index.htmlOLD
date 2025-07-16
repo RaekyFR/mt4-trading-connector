@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Commander MetaTrader</title>
+  <script src="https://cdn.jsdelivr.net/npm/alpinejs@2.8.2/dist/alpine.min.js" defer></script>
+  <link href="https://cdn.jsdelivr.net/npm/bulma@0.9.3/css/bulma.min.css" rel="stylesheet">
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 40px;
+    }
+
+    #balance {
+      margin-top: 20px;
+      font-size: 18px;
+      color: green;
+    }
+
+    .button.is-loading {
+      pointer-events: none; /* Empêche de cliquer plusieurs fois */
+    }
+  </style>
+</head>
+<body>
+  <div x-data="{
+        balance: '?',
+        isRequesting: false,
+        requestBalance() {
+          this.isRequesting = true;
+          fetch('/send-command', { method: 'POST' })
+            .then(res => res.json())
+            .then(data => {
+              if (data.ok) {
+                this.balance = 'En attente de MT4...';
+                this.checkBalance();
+              }
+            });
+        },
+        checkBalance() {
+          fetch('/last-balance')
+            .then(res => res.json())
+            .then(data => {
+              if (data.balance != null) {
+                this.balance = data.balance;
+                this.isRequesting = false;
+              } else {
+                setTimeout(this.checkBalance, 1000); // Re-vérifie toutes les secondes
+              }
+            });
+        }
+      }" class="container">
+    
+    <h1 class="title is-3 has-text-centered">Commander MetaTrader</h1>
+
+    <div class="has-text-centered">
+      <button class="button is-primary" :class="{'is-loading': isRequesting}" x-on:click="requestBalance()" :disabled="isRequesting">
+        Demander la balance
+      </button>
+    </div>
+
+    <div id="balance" class="has-text-centered" x-text="'Balance : ' + balance"></div>
+    
+  </div>
+</body>
+</html>

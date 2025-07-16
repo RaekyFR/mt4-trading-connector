@@ -1,66 +1,373 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="fr" data-theme="dark">
 <head>
-  <meta charset="UTF-8">
-  <title>Commander MetaTrader</title>
-  <script src="https://cdn.jsdelivr.net/npm/alpinejs@2.8.2/dist/alpine.min.js" defer></script>
-  <link href="https://cdn.jsdelivr.net/npm/bulma@0.9.3/css/bulma.min.css" rel="stylesheet">
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      margin: 40px;
-    }
-
-    #balance {
-      margin-top: 20px;
-      font-size: 18px;
-      color: green;
-    }
-
-    .button.is-loading {
-      pointer-events: none; /* Empêche de cliquer plusieurs fois */
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Trading Monitor</title>
+    <meta name="description" content="Monitoring en temps réel du système TradingView ↔ MT4">
+    
+    <!-- Styles -->
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="css/dashboard.css">
+    
+    <!-- Chart.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    
+    <!-- Favicon -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
 </head>
 <body>
-  <div x-data="{
-        balance: '?',
-        isRequesting: false,
-        requestBalance() {
-          this.isRequesting = true;
-          fetch('/send-command', { method: 'POST' })
-            .then(res => res.json())
-            .then(data => {
-              if (data.ok) {
-                this.balance = 'En attente de MT4...';
-                this.checkBalance();
-              }
-            });
-        },
-        checkBalance() {
-          fetch('/last-balance')
-            .then(res => res.json())
-            .then(data => {
-              if (data.balance != null) {
-                this.balance = data.balance;
-                this.isRequesting = false;
-              } else {
-                setTimeout(this.checkBalance, 1000); // Re-vérifie toutes les secondes
-              }
-            });
-        }
-      }" class="container">
-    
-    <h1 class="title is-3 has-text-centered">Commander MetaTrader</h1>
+    <div class="app-container">
+        <!-- Sidebar Navigation -->
+        <div id="navigationContainer"></div>
+        
+        <!-- Main Content -->
+        <main class="main-content" id="mainContent">
+            <div class="content-wrapper">
+                <!-- Page Header -->
+                <div class="page-header">
+                    <div>
+                        <h1 class="page-title">Dashboard</h1>
+                        <p class="page-subtitle">Surveillance en temps réel du système de trading</p>
+                    </div>
+                    <div class="page-actions">
+                        <button class="btn btn-secondary" id="refreshBtn">
+                            <span>🔄</span>
+                            Actualiser
+                        </button>
+                        <button class="btn btn-ghost" id="themeToggle">
+                            <span id="themeIcon">🌙</span>
+                            Thème
+                        </button>
+                    </div>
+                </div>
 
-    <div class="has-text-centered">
-      <button class="button is-primary" :class="{'is-loading': isRequesting}" x-on:click="requestBalance()" :disabled="isRequesting">
-        Demander la balance
-      </button>
+                <!-- System Status Alert -->
+                <div class="alert-container" id="systemAlert" style="display: none;">
+                    <div class="alert alert-warning">
+                        <span class="alert-icon">⚠️</span>
+                        <div class="alert-content">
+                            <strong>Problème système détecté</strong>
+                            <p id="systemAlertMessage"></p>
+                        </div>
+                        <button class="alert-close" onclick="this.parentElement.parentElement.style.display='none'">×</button>
+                    </div>
+                </div>
+
+                <!-- Account Overview -->
+                <div class="grid grid-cols-4 grid-responsive">
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-title">Balance</div>
+                        </div>
+                        <div class="card-body">
+                            <div class="stat-item">
+                                <span class="stat-value" id="balanceValue">--</span>
+                                <div class="stat-label">Compte MT4</div>
+                                <div class="stat-change" id="balanceChange">
+                                    <span id="balanceChangeIcon">-</span>
+                                    <span id="balanceChangeValue">--</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-title">Equity</div>
+                        </div>
+                        <div class="card-body">
+                            <div class="stat-item">
+                                <span class="stat-value" id="equityValue">--</span>
+                                <div class="stat-label">Valeur courante</div>
+                                <div class="stat-change" id="equityChange">
+                                    <span id="equityChangeIcon">-</span>
+                                    <span id="equityChangeValue">--</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-title">Positions</div>
+                        </div>
+                        <div class="card-body">
+                            <div class="stat-item">
+                                <span class="stat-value" id="positionsValue">--</span>
+                                <div class="stat-label">Ouvertes</div>
+                                <div class="stat-change" id="positionsChange">
+                                    <span id="positionsChangeIcon">-</span>
+                                    <span id="positionsChangeValue">--</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-title">P&L Journalier</div>
+                        </div>
+                        <div class="card-body">
+                            <div class="stat-item">
+                                <span class="stat-value" id="pnlValue">--</span>
+                                <div class="stat-label">Aujourd'hui</div>
+                                <div class="stat-change" id="pnlChange">
+                                    <span id="pnlChangeIcon">-</span>
+                                    <span id="pnlChangeValue">--</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Charts Row -->
+                <div class="grid grid-cols-2" style="margin-top: var(--spacing-xl);">
+                    <!-- Equity Chart -->
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-title">Évolution de l'Equity</div>
+                            <div class="card-subtitle">Dernières 24 heures</div>
+                        </div>
+                        <div class="card-body">
+                            <canvas id="equityChart" width="400" height="200"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Performance Chart -->
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-title">Performance</div>
+                            <div class="card-subtitle">P&L par stratégie</div>
+                        </div>
+                        <div class="card-body">
+                            <canvas id="performanceChart" width="400" height="200"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Trading Activity -->
+                <div class="grid grid-cols-2" style="margin-top: var(--spacing-xl);">
+                    <!-- Recent Orders -->
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-title">Ordres Récents</div>
+                            <div class="card-subtitle">Dernières transactions</div>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-container">
+                                <table class="table table-condensed">
+                                    <thead>
+                                        <tr>
+                                            <th>Symbole</th>
+                                            <th>Action</th>
+                                            <th>Stratégie</th>
+                                            <th>Statut</th>
+                                            <th>Heure</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="recentSignalsTable">
+                                        <tr>
+                                            <td colspan="5" class="text-center text-muted">Chargement...</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <div class="card-footer">
+                            <a href="pages/signals.html" class="btn btn-sm btn-ghost">Voir tous les signaux</a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Risk Management -->
+                <div class="grid grid-cols-3" style="margin-top: var(--spacing-xl);">
+                    <!-- Risk Metrics -->
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-title">Métriques de Risque</div>
+                            <div class="card-subtitle">État actuel</div>
+                        </div>
+                        <div class="card-body">
+                            <div class="risk-metrics">
+                                <div class="risk-item">
+                                    <div class="risk-label">Exposition Totale</div>
+                                    <div class="risk-value" id="totalExposure">--</div>
+                                    <div class="risk-progress">
+                                        <div class="progress-bar" id="exposureProgress"></div>
+                                    </div>
+                                </div>
+                                <div class="risk-item">
+                                    <div class="risk-label">Risque Total</div>
+                                    <div class="risk-value" id="totalRisk">--</div>
+                                    <div class="risk-progress">
+                                        <div class="progress-bar" id="riskProgress"></div>
+                                    </div>
+                                </div>
+                                <div class="risk-item">
+                                    <div class="risk-label">Niveau de Marge</div>
+                                    <div class="risk-value" id="marginLevel">--</div>
+                                    <div class="risk-progress">
+                                        <div class="progress-bar" id="marginProgress"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Trading Statistics -->
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-title">Statistiques</div>
+                            <div class="card-subtitle">Derniers 7 jours</div>
+                        </div>
+                        <div class="card-body">
+                            <div class="trading-stats">
+                                <div class="stat-row">
+                                    <span class="stat-label">Trades Totaux</span>
+                                    <span class="stat-value" id="totalTrades">--</span>
+                                </div>
+                                <div class="stat-row">
+                                    <span class="stat-label">Win Rate</span>
+                                    <span class="stat-value" id="winRate">--</span>
+                                </div>
+                                <div class="stat-row">
+                                    <span class="stat-label">Profit Factor</span>
+                                    <span class="stat-value" id="profitFactor">--</span>
+                                </div>
+                                <div class="stat-row">
+                                    <span class="stat-label">Max Drawdown</span>
+                                    <span class="stat-value" id="maxDrawdown">--</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- System Health -->
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-title">État du Système</div>
+                            <div class="card-subtitle">Composants</div>
+                        </div>
+                        <div class="card-body">
+                            <div class="system-health">
+                                <div class="health-item">
+                                    <div class="health-indicator" id="mt4Indicator"></div>
+                                    <div class="health-label">MT4 Connector</div>
+                                    <div class="health-status" id="mt4Status">--</div>
+                                </div>
+                                <div class="health-item">
+                                    <div class="health-indicator" id="signalIndicator"></div>
+                                    <div class="health-label">Signal Processor</div>
+                                    <div class="health-status" id="signalStatus">--</div>
+                                </div>
+                                <div class="health-item">
+                                    <div class="health-indicator" id="dbIndicator"></div>
+                                    <div class="health-label">Database</div>
+                                    <div class="health-status" id="dbStatus">--</div>
+                                </div>
+                                <div class="health-item">
+                                    <div class="health-indicator" id="riskIndicator"></div>
+                                    <div class="health-label">Risk Manager</div>
+                                    <div class="health-status" id="riskStatus">--</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card-footer">
+                            <button class="btn btn-sm btn-warning" id="restartSystemBtn">
+                                <span>🔄</span>
+                                Redémarrer
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Activity Log -->
+                <div class="card" style="margin-top: var(--spacing-xl);">
+                    <div class="card-header">
+                        <div class="card-title">Journal d'Activité</div>
+                        <div class="card-subtitle">Événements récents</div>
+                    </div>
+                    <div class="card-body">
+                        <div class="activity-log" id="activityLog">
+                            <div class="log-item">
+                                <div class="log-time">Chargement...</div>
+                                <div class="log-message">Initialisation du système...</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-footer">
+                        <a href="pages/logs.html" class="btn btn-sm btn-ghost">Voir tous les logs</a>
+                    </div>
+                </div>
+            </div>
+        </main>
     </div>
 
-    <div id="balance" class="has-text-centered" x-text="'Balance : ' + balance"></div>
-    
-  </div>
+    <!-- Scripts -->
+    <script src="js/config.js"></script>
+    <script src="js/utils.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/theme.js"></script>
+    <script src="js/realtime.js"></script>
+    <script src="components/navigation.js"></script>
+    <script src="components/notifications.js"></script>
+    <script src="components/modal.js"></script>
+    <script src="components/charts.js"></script>
+    <script src="js/dashboard.js"></script>
+
+    <script>
+        // Initialisation de l'application
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialiser les composants
+            const navigation = new NavigationComponent();
+            document.getElementById('navigationContainer').innerHTML = navigation.render();
+            navigation.init();
+            
+            // Initialiser le dashboard
+            const dashboard = new DashboardManager();
+            dashboard.init();
+            
+            // Initialiser le thème
+            const themeManager = new ThemeManager();
+            themeManager.init();
+            
+            // Initialiser les mises à jour temps réel
+            const realtime = new RealtimeManager();
+            realtime.init();
+        });
+    </script>
 </body>
-</html>
+</html>Symbole</th>
+                                            <th>Type</th>
+                                            <th>Lots</th>
+                                            <th>Prix</th>
+                                            <th>Statut</th>
+                                            <th>Heure</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="recentOrdersTable">
+                                        <tr>
+                                            <td colspan="6" class="text-center text-muted">Chargement...</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <div class="card-footer">
+                            <a href="pages/orders.html" class="btn btn-sm btn-ghost">Voir tous les ordres</a>
+                        </div>
+                    </div>
+
+                    <!-- Recent Signals -->
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-title">Signaux Récents</div>
+                            <div class="card-subtitle">Derniers signaux TradingView</div>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-container">
+                                <table class="table table-condensed">
+                                    <thead>
+                                        <tr>
+                                            <th>
