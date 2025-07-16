@@ -13,7 +13,218 @@ router.get('/account/state', async (req, res) => {
     // Récupérer depuis la DB
     const dbState = await req.prisma.accountState.findFirst({
       orderBy: { lastUpdate: 'desc' }
+    });
+
+    // Essayer de récupérer l'état en temps réel depuis MT4
+    let mt4State = null;
+    try {
+      const balanceResult = await req.mt4Connector.getBalance();
+      if (balanceResult.success) {
+        mt4State = balanceResult;
+        
+        // Mettre à jour la DB
+        await req.prisma.accountState.create({
+          data: {
+            balance: balanceResult.balance,
+            equity: balanceResult.equity,
+            margin: balanceResult.margin,
+            freeMargin: balanceResult.freeMargin,
+            marginLevel: balanceResult.marginLevel || 0
+          }
+        });
+      }
     } catch (error) {
+      console.error('[API] Erreur récupération MT4:', error);
+    }
+
+    res.json({
+      current: mt4State || dbState,
+      lastUpdate: dbState?.lastUpdate,
+      isRealTime: !!mt4State
+    });
+
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/account/metrics
+ * Récupère les métriques de performance
+ */
+router.get('/account/metrics', async (req, res) => {
+  try {
+    const { period = '7d' } = req.query;
+    
+    // Calculer la date de début selon la période
+    const startDate = new Date();
+    switch(period) {
+      case '1d': startDate.setDate(startDate.getDate() - 1); break;
+      case '7d': startDate.setDate(startDate.getDate() - 7); break;
+      case '30d': startDate.setDate(startDate.getDate() - 30); break;
+      case 'all': startDate.setFullYear(2000); break;
+    }
+
+    // Statistiques des ordres
+    const orderStats = await req.prisma.order.groupBy({
+      by: ['status'],
+      where: {
+        createdAt: { gte: startDate }
+      },
+      _count: true
+    });
+
+    // Calcul du P&L
+    const profitLoss = await req.prisma.order.aggregate({
+      where: {
+        status: 'CLOSED',
+        closeTime: { gte: startDate }
+      },
+      _sum: { profit: true },
+      _count: true
+    });
+
+    // Trades gagnants/perdants
+    const winningTrades = await req.prisma.order.count({
+      where: {
+        status: 'CLOSED',
+        closeTime: { gte: startDate },
+        profit: { gt: 0 }
+      }
+    });
+
+    const totalClosedTrades = profitLoss._count || 0;
+    const winRate = totalClosedTrades > 0 
+      ? (winningTrades / totalClosedTrades) * 100 
+      : 0;
+
+    // Risk metrics
+    const latestRiskMetric = await req.prisma.riskMetric.findFirst({
+      orderBy: { timestamp: 'desc' }
+    });
+
+    res.json({
+      period,
+      orderStats,
+      profitLoss: {
+        total: profitLoss._sum.profit || 0,
+        trades: totalClosedTrades,
+        winRate: winRate.toFixed(2)
+      },
+      currentRisk: {
+        openPositions: latestRiskMetric?.openPositions || 0,
+        totalExposure: latestRiskMetric?.totalExposure || 0,
+        totalRisk: latestRiskMetric?.totalRisk || 0,
+        dailyPnL: latestRiskMetric?.dailyPnL || 0
+      }
+    });
+
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ==================== STRATEGIES ====================
+
+/**
+ * GET /api/strategies
+ * Liste toutes les stratégies
+ */
+router.get('/strategies', async (req, res) => {
+  try {
+    const strategies = await req.prisma.strategy.findMany({
+      include: {
+        _count: {
+          select: {
+            signals: true,
+            orders: true
+          }
+        }
+      }
+    });
+
+    res.json(strategies);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/strategies
+ * Crée une nouvelle stratégie
+ */
+router.post('/strategies', async (req, res) => {
+  try {
+    const strategy = await req.prisma.strategy.create({
+      data: req.body
+    });
+
+    res.json(strategy);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+/**
+ * PUT /api/strategies/:id
+ * Met à jour une stratégie
+ */
+router.put('/strategies/:id', async (req, res) => {
+  try {
+    const strategy = await req.prisma.strategy.update({
+      where: { id: req.params.id },
+      data: req.body
+    });
+
+    res.json(strategy);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// ==================== SIGNALS ====================
+
+/**
+ * GET /api/signals
+ * Liste les signaux avec filtres
+ */
+router.get('/signals', async (req, res) => {
+  try {
+    const { 
+      status, 
+      strategyId, 
+      symbol,
+      limit = 50,
+      offset = 0 
+    } = req.query;
+
+    const where = {};
+    if (status) where.status = status;
+    if (strategyId) where.strategyId = strategyId;
+    if (symbol) where.symbol = symbol;
+
+    const [signals, total] = await Promise.all([
+      req.prisma.signal.findMany({
+        where,
+        include: {
+          strategy: true,
+          orders: true
+        },
+        orderBy: { createdAt: 'desc' },
+        take: parseInt(limit),
+        skip: parseInt(offset)
+      }),
+      req.prisma.signal.count({ where })
+    ]);
+
+    res.json({
+      data: signals,
+      total,
+      limit: parseInt(limit),
+      offset: parseInt(offset)
+    });
+
+  } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
@@ -416,215 +627,4 @@ router.post('/system/restart', async (req, res) => {
   }
 });
 
-module.exports = router;);
-
-    // Essayer de récupérer l'état en temps réel depuis MT4
-    let mt4State = null;
-    try {
-      const balanceResult = await req.mt4Connector.getBalance();
-      if (balanceResult.success) {
-        mt4State = balanceResult;
-        
-        // Mettre à jour la DB
-        await req.prisma.accountState.create({
-          data: {
-            balance: balanceResult.balance,
-            equity: balanceResult.equity,
-            margin: balanceResult.margin,
-            freeMargin: balanceResult.freeMargin,
-            marginLevel: balanceResult.marginLevel || 0
-          }
-        });
-      }
-    } catch (error) {
-      console.error('[API] Erreur récupération MT4:', error);
-    }
-
-    res.json({
-      current: mt4State || dbState,
-      lastUpdate: dbState?.lastUpdate,
-      isRealTime: !!mt4State
-    });
-
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-/**
- * GET /api/account/metrics
- * Récupère les métriques de performance
- */
-router.get('/account/metrics', async (req, res) => {
-  try {
-    const { period = '7d' } = req.query;
-    
-    // Calculer la date de début selon la période
-    const startDate = new Date();
-    switch(period) {
-      case '1d': startDate.setDate(startDate.getDate() - 1); break;
-      case '7d': startDate.setDate(startDate.getDate() - 7); break;
-      case '30d': startDate.setDate(startDate.getDate() - 30); break;
-      case 'all': startDate.setFullYear(2000); break;
-    }
-
-    // Statistiques des ordres
-    const orderStats = await req.prisma.order.groupBy({
-      by: ['status'],
-      where: {
-        createdAt: { gte: startDate }
-      },
-      _count: true
-    });
-
-    // Calcul du P&L
-    const profitLoss = await req.prisma.order.aggregate({
-      where: {
-        status: 'CLOSED',
-        closeTime: { gte: startDate }
-      },
-      _sum: { profit: true },
-      _count: true
-    });
-
-    // Trades gagnants/perdants
-    const winningTrades = await req.prisma.order.count({
-      where: {
-        status: 'CLOSED',
-        closeTime: { gte: startDate },
-        profit: { gt: 0 }
-      }
-    });
-
-    const totalClosedTrades = profitLoss._count || 0;
-    const winRate = totalClosedTrades > 0 
-      ? (winningTrades / totalClosedTrades) * 100 
-      : 0;
-
-    // Risk metrics
-    const latestRiskMetric = await req.prisma.riskMetric.findFirst({
-      orderBy: { timestamp: 'desc' }
-    });
-
-    res.json({
-      period,
-      orderStats,
-      profitLoss: {
-        total: profitLoss._sum.profit || 0,
-        trades: totalClosedTrades,
-        winRate: winRate.toFixed(2)
-      },
-      currentRisk: {
-        openPositions: latestRiskMetric?.openPositions || 0,
-        totalExposure: latestRiskMetric?.totalExposure || 0,
-        totalRisk: latestRiskMetric?.totalRisk || 0,
-        dailyPnL: latestRiskMetric?.dailyPnL || 0
-      }
-    });
-
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// ==================== STRATEGIES ====================
-
-/**
- * GET /api/strategies
- * Liste toutes les stratégies
- */
-router.get('/strategies', async (req, res) => {
-  try {
-    const strategies = await req.prisma.strategy.findMany({
-      include: {
-        _count: {
-          select: {
-            signals: true,
-            orders: true
-          }
-        }
-      }
-    });
-
-    res.json(strategies);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-/**
- * POST /api/strategies
- * Crée une nouvelle stratégie
- */
-router.post('/strategies', async (req, res) => {
-  try {
-    const strategy = await req.prisma.strategy.create({
-      data: req.body
-    });
-
-    res.json(strategy);
-  } catch (error) {
-    res.status(400).json({ error: error.message });
-  }
-});
-
-/**
- * PUT /api/strategies/:id
- * Met à jour une stratégie
- */
-router.put('/strategies/:id', async (req, res) => {
-  try {
-    const strategy = await req.prisma.strategy.update({
-      where: { id: req.params.id },
-      data: req.body
-    });
-
-    res.json(strategy);
-  } catch (error) {
-    res.status(400).json({ error: error.message });
-  }
-});
-
-// ==================== SIGNALS ====================
-
-/**
- * GET /api/signals
- * Liste les signaux avec filtres
- */
-router.get('/signals', async (req, res) => {
-  try {
-    const { 
-      status, 
-      strategyId, 
-      symbol,
-      limit = 50,
-      offset = 0 
-    } = req.query;
-
-    const where = {};
-    if (status) where.status = status;
-    if (strategyId) where.strategyId = strategyId;
-    if (symbol) where.symbol = symbol;
-
-    const [signals, total] = await Promise.all([
-      req.prisma.signal.findMany({
-        where,
-        include: {
-          strategy: true,
-          orders: true
-        },
-        orderBy: { createdAt: 'desc' },
-        take: parseInt(limit),
-        skip: parseInt(offset)
-      }),
-      req.prisma.signal.count({ where })
-    ]);
-
-    res.json({
-      data: signals,
-      total,
-      limit: parseInt(limit),
-      offset: parseInt(offset)
-    });
-
-  }
+module.exports = router;

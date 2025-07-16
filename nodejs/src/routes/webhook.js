@@ -1,7 +1,7 @@
 // nodejs/src/server/routes/webhook.js
 const express = require('express');
 const router = express.Router();
-const config = require('../../config');
+const config = require('../../../config');
 
 /**
  * POST /webhook/tradingview

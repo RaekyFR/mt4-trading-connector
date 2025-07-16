@@ -1,0 +1,31 @@
+{
+  "dependencies": {
+    "@prisma/client": "^6.9.0",
+    "dotenv": "^16.5.0",
+    "express": "^5.1.0",
+    "uuid": "^11.1.0"
+  },
+  "name": "tv_mt4",
+  "version": "1.0.0",
+  "description": "---",
+  "main": "index.js",
+  "devDependencies": {
+    "prisma": "^6.9.0"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "init-db": "npx prisma db push && node script/init-db.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/RaekyFR/mt4-trading-connector.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/RaekyFR/mt4-trading-connector/issues"
+  },
+  "homepage": "https://github.com/RaekyFR/mt4-trading-connector#readme"
+}

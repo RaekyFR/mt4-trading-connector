@@ -1,30 +1,43 @@
 {
+  "name": "tv_mt4_bridge",
+  "version": "2.0.0",
+  "description": "Pont TradingView ↔ MT4 avec Risk Management avancé",
+  "main": "src/server/index.js",
+  "scripts": {
+    "start": "node nodejs/src/server/index.js",
+    "dev": "NODE_ENV=development node nodejs/src/server/index.js",
+    "test": "node test/run-tests.js",
+    "test:mt4": "node test/mt4-connection.test.js",
+    "test:risk": "node test/risk-manager.test.js",
+    "init-db": "npx prisma db push --force-reset && node scripts/init-db.js",
+    "reset-db": "node scripts/reset-db.js",
+    "prisma:generate": "npx prisma generate",
+    "prisma:migrate": "npx prisma migrate dev",
+    "prisma:studio": "npx prisma studio",
+    "signal:test": "node scripts/test-signal.js",
+    "mt4:ping": "node ping_test.js",
+    "mt4:balance": "node test/test-balance.js",
+    "mt4:order": "node market_test.js"
+  },
   "dependencies": {
     "@prisma/client": "^6.9.0",
     "dotenv": "^16.5.0",
     "express": "^5.1.0",
     "uuid": "^11.1.0"
   },
-  "name": "tv_mt4",
-  "version": "1.0.0",
-  "description": "---",
-  "main": "index.js",
   "devDependencies": {
     "prisma": "^6.9.0"
   },
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/RaekyFR/mt4-trading-connector.git"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs",
-  "bugs": {
-    "url": "https://github.com/RaekyFR/mt4-trading-connector/issues"
-  },
-  "homepage": "https://github.com/RaekyFR/mt4-trading-connector#readme"
+  "keywords": [
+    "trading",
+    "mt4",
+    "tradingview",
+    "risk-management",
+    "automated-trading"
+  ],
+  "author": "Raeky",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  }
 }
