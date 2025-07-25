@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TradingView MT4 Bridge - Dashboard</title>
+    <link rel="stylesheet" href="https://assets.ubuntu.com/v1/vanilla-framework-version-4.26.1.min.css" />
+    <style>
+        /* Styles minimaux uniquement pour les spécificités trading */
+        .status-indicator { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-left: 0.5rem; }
+        .status-indicator.connected { background-color: #0e8420; }
+        .status-indicator.disconnected { background-color: #c7162b; }
+        .status-indicator.warning { background-color: #f99b11; }
+        
+        .metric-change.positive { color: #0e8420; }
+        .metric-change.negative { color: #c7162b; }
+        
+        .position-pnl.positive { color: #0e8420; }
+        .position-pnl.negative { color: #c7162b; }
+        
+        .navbar-fixed { position: fixed; top: 0; left: 0; right: 0; z-index: 100; background: white; border-bottom: 1px solid #d9d9d9; }
+        .main-offset { margin-top: 4rem; }
+        
+        .chart-container { height: 300px; position: relative; }
+        
+        .risk-progress-container { background: #f7f7f7; height: 8px; border-radius: 4px; overflow: hidden; margin-top: 0.25rem; }
+        .risk-progress { height: 100%; transition: width 0.3s ease; }
+        .risk-progress.low { background-color: #0e8420; }
+        .risk-progress.medium { background-color: #f99b11; }
+        .risk-progress.high { background-color: #c7162b; }
+    </style>
+</head>
+<body>
+    <!-- Navigation fixe -->
+    <nav class="p-navigation navbar-fixed">
+        <div class="p-navigation__row">
+            <div class="p-navigation__banner">
+                <div class="p-navigation__tagged-logo">
+                    <span class="p-navigation__logo-tag">TV-MT4</span>
+                    <span class="p-navigation__logo-title">Bridge</span>
+                    <span class="status-indicator" id="statusIndicator"></span>
+                </div>
+            </div>
+            <div class="p-navigation__nav">
+                <ul class="p-navigation__items">
+                    <li class="p-navigation__item is-selected">
+                        <a class="p-navigation__link" href="#dashboard">Dashboard</a>
+                    </li>
+                    <li class="p-navigation__item">
+                        <a class="p-navigation__link" href="#strategies">Strategies</a>
+                    </li>
+                    <li class="p-navigation__item">
+                        <a class="p-navigation__link" href="#signals">Signals</a>
+                    </li>
+                    <li class="p-navigation__item">
+                        <a class="p-navigation__link" href="#orders">Orders</a>
+                    </li>
+                    <li class="p-navigation__item">
+                        <a class="p-navigation__link" href="#risk">Risk</a>
+                    </li>
+                    <li class="p-navigation__item">
+                        <a class="p-navigation__link" href="#logs">Logs</a>
+                    </li>
+                </ul>
+            </div>
+            <div class="p-navigation__nav">
+                <ul class="p-navigation__items">
+                    <li class="p-navigation__item">
+                        <button class="p-button--base has-icon" id="themeToggle" title="Toggle Theme">
+                            <i class="p-icon--light"></i>
+                        </button>
+                    </li>
+                    <li class="p-navigation__item">
+                        <button class="p-button--base has-icon" id="refreshBtn" title="Refresh Data">
+                            <i class="p-icon--restart"></i>
+                        </button>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Contenu principal -->
+    <main class="main-offset">
+        <div class="p-strip is-shallow">
+            <div class="row">
+                <div class="col-12">
+                    <!-- En-tête du dashboard -->
+                    <div class="p-section--shallow">
+                        <div class="row">
+                            <div class="col-8">
+                                <h1 class="p-heading--2">Trading Dashboard</h1>
+                                <p class="p-text--small-caps">Real-time monitoring & control</p>
+                            </div>
+                            <div class="col-4">
+                                <div class="u-align--right">
+                                    <button class="p-button--negative" id="closeAllBtn">Close All</button>
+                                    <button class="p-button--base" id="systemRestartBtn">Restart</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Barre de statut système -->
+                    <div class="p-notification--information">
+                        <div class="p-notification__content">
+                            <div class="row">
+                                <div class="col-2">
+                                    <span class="p-text--small-caps">MT4</span><br>
+                                    <span class="p-text--default" id="mt4StatusText">Connected</span>
+                                </div>
+                                <div class="col-2">
+                                    <span class="p-text--small-caps">Processor</span><br>
+                                    <span class="p-text--default" id="processorStatusText">Running</span>
+                                </div>
+                                <div class="col-2">
+                                    <span class="p-text--small-caps">Positions</span><br>
+                                    <span class="p-text--default" id="openPositions">0</span>
+                                </div>
+                                <div class="col-2">
+                                    <span class="p-text--small-caps">Signals</span><br>
+                                    <span class="p-text--default" id="pendingSignals">0</span>
+                                </div>
+                                <div class="col-4">
+                                    <span class="p-text--small-caps">Last Update</span><br>
+                                    <span class="p-text--default" id="lastUpdate">--</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Grille du dashboard -->
+        <div class="p-strip is-shallow">
+            <div class="row">
+                <!-- Aperçu du compte -->
+                <div class="col-4">
+                    <div class="p-card">
+                        <div class="p-card__header">
+                            <h3 class="p-card__title">Account Overview</h3>
+                            <span class="status-indicator" id="accountStatus"></span>
+                        </div>
+                        <div class="p-card__content">
+                            <div class="row">
+                                <div class="col-6">
+                                    <p class="p-text--small-caps">Balance</p>
+                                    <p class="p-heading--4" id="balance">$0.00</p>
+                                    <p class="p-text--small metric-change" id="balanceChange">--</p>
+                                </div>
+                                <div class="col-6">
+                                    <p class="p-text--small-caps">Equity</p>
+                                    <p class="p-heading--4" id="equity">$0.00</p>
+                                    <p class="p-text--small metric-change" id="equityChange">--</p>
+                                </div>
+                            </div>
+                            <hr class="p-rule">
+                            <div class="row">
+                                <div class="col-6">
+                                    <p class="p-text--small-caps">Margin</p>
+                                    <p class="p-heading--5" id="margin">$0.00</p>
+                                    <p class="p-text--small" id="marginLevel">0%</p>
+                                </div>
+                                <div class="col-6">
+                                    <p class="p-text--small-caps">Free Margin</p>
+                                    <p class="p-heading--5" id="freeMargin">$0.00</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Graphique de performance -->
+                <div class="col-8">
+                    <div class="p-card">
+                        <div class="p-card__header">
+                            <h3 class="p-card__title">Performance</h3>
+                            <select class="p-form-field__select" id="performancePeriod">
+                                <option value="1d">1 Day</option>
+                                <option value="7d" selected>7 Days</option>
+                                <option value="30d">30 Days</option>
+                            </select>
+                        </div>
+                        <div class="p-card__content">
+                            <div class="chart-container">
+                                <canvas id="performanceChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="p-strip is-shallow">
+            <div class="row">
+                <!-- Métriques de risque -->
+                <div class="col-4">
+                    <div class="p-card">
+                        <div class="p-card__header">
+                            <h3 class="p-card__title">Risk Metrics</h3>
+                            <span class="p-label--positive" id="riskLevel">LOW</span>
+                        </div>
+                        <div class="p-card__content">
+                            <div class="p-section--shallow">
+                                <div class="row">
+                                    <div class="col-8">
+                                        <span class="p-text--small-caps">Total Exposure</span>
+                                    </div>
+                                    <div class="col-4">
+                                        <span class="p-text--default" id="totalExposure">0.00</span>
+                                    </div>
+                                </div>
+                                <div class="risk-progress-container">
+                                    <div class="risk-progress low" id="exposureProgress" style="width: 0%"></div>
+                                </div>
+                            </div>
+                            
+                            <div class="p-section--shallow">
+                                <div class="row">
+                                    <div class="col-8">
+                                        <span class="p-text--small-caps">Daily Risk</span>
+                                    </div>
+                                    <div class="col-4">
+                                        <span class="p-text--default" id="dailyRisk">$0.00</span>
+                                    </div>
+                                </div>
+                                <div class="risk-progress-container">
+                                    <div class="risk-progress low" id="dailyRiskProgress" style="width: 0%"></div>
+                                </div>
+                            </div>
+                            
+                            <div class="p-section--shallow">
+                                <div class="row">
+                                    <div class="col-8">
+                                        <span class="p-text--small-caps">Daily P&L</span>
+                                    </div>
+                                    <div class="col-4">
+                                        <span class="p-text--default" id="dailyPnL">$0.00</span>
+                                    </div>
+                                </div>
+                                <div class="risk-progress-container">
+                                    <div class="risk-progress low" id="dailyPnLProgress" style="width: 0%"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Positions actives -->
+                <div class="col-4">
+                    <div class="p-card">
+                        <div class="p-card__header">
+                            <h3 class="p-card__title">Active Positions</h3>
+                            <button class="p-button--base is-dense" id="refreshPositions">Refresh</button>
+                        </div>
+                        <div class="p-card__content">
+                            <div id="positionsList">
+                                <div class="p-text--muted u-align--center">
+                                    <p>No active positions</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Signaux récents -->
+                <div class="col-4">
+                    <div class="p-card">
+                        <div class="p-card__header">
+                            <h3 class="p-card__title">Recent Signals</h3>
+                            <a href="#signals" class="p-text--small">View All</a>
+                        </div>
+                        <div class="p-card__content">
+                            <div id="signalsList">
+                                <div class="p-text--muted u-align--center">
+                                    <p>Loading...</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="p-strip is-shallow">
+            <div class="row">
+                <!-- Statistiques de trading -->
+                <div class="col-12">
+                    <div class="p-card">
+                        <div class="p-card__header">
+                            <h3 class="p-card__title">Trading Statistics</h3>
+                            <select class="p-form-field__select" id="statsPeriod">
+                                <option value="7d" selected>7 Days</option>
+                                <option value="30d">30 Days</option>
+                                <option value="all">All Time</option>
+                            </select>
+                        </div>
+                        <div class="p-card__content">
+                            <div class="row">
+                                <div class="col-3 u-align--center">
+                                    <p class="p-heading--2" id="totalTrades">0</p>
+                                    <p class="p-text--small-caps">Total Trades</p>
+                                </div>
+                                <div class="col-3 u-align--center">
+                                    <p class="p-heading--2" id="winRate">0%</p>
+                                    <p class="p-text--small-caps">Win Rate</p>
+                                </div>
+                                <div class="col-3 u-align--center">
+                                    <p class="p-heading--2" id="totalPnL">$0.00</p>
+                                    <p class="p-text--small-caps">Total P&L</p>
+                                </div>
+                                <div class="col-3 u-align--center">
+                                    <p class="p-heading--2" id="avgProfit">$0.00</p>
+                                    <p class="p-text--small-caps">Avg Profit</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Zone de notifications -->
+    <div id="notifications" style="position: fixed; top: 1rem; right: 1rem; z-index: 200; max-width: 400px;"></div>
+
+    <!-- Scripts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <script src="./js/api.js"></script>
+    <script src="./js/components/navbar.js"></script>
+    <script src="./js/components/notifications.js"></script>
+    <script src="./js/dashboard.js"></script>
+    <script src="./js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stratégies - Trading Monitor</title>
+    <meta name="description" content="Gestion des stratégies de trading TradingView ↔ MT4">
+    
+    <!-- Styles -->
+    <link rel="stylesheet" href="../css/main.css">
+    <link rel="stylesheet" href="../css/dashboard.css">
+    <link rel="stylesheet" href="../css/strategies.css">
+    
+    <!-- Favicon -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar Navigation -->
+        <div id="navigationContainer"></div>
+        
+        <!-- Main Content -->
+        <main class="main-content" id="mainContent">
+            <div class="content-wrapper">
+                <!-- Page Header -->
+                <div class="page-header">
+                    <div>
+                        <h1 class="page-title">Gestion des Stratégies</h1>
+                        <p class="page-subtitle">Configuration et suivi des stratégies de trading</p>
+                    </div>
+                    <div class="page-actions">
+                        <button class="btn btn-secondary" id="refreshBtn">
+                            <span>🔄</span>
+                            Actualiser
+                        </button>
+                        <button class="btn btn-primary" id="addStrategyBtn">
+                            <span>➕</span>
+                            Nouvelle Stratégie
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Filtres et recherche -->
+                <div class="card">
+                    <div class="card-body">
+                        <div class="filters-row">
+                            <div class="search-group">
+                                <input type="text" class="form-control" id="searchInput" placeholder="Rechercher une stratégie...">
+                            </div>
+                            <div class="filter-group">
+                                <select class="form-control" id="statusFilter">
+                                    <option value="">Tous les statuts</option>
+                                    <option value="true">Actives</option>
+                                    <option value="false">Inactives</option>
+                                </select>
+                            </div>
+                            <div class="filter-group">
+                                <select class="form-control" id="sortBy">
+                                    <option value="name">Nom</option>
+                                    <option value="createdAt">Date de création</option>
+                                    <option value="updatedAt">Dernière modification</option>
+                                </select>
+                            </div>
+                            <div class="filter-group">
+                                <select class="form-control" id="sortOrder">
+                                    <option value="asc">Croissant</option>
+                                    <option value="desc">Décroissant</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Statistiques rapides -->
+                <div class="grid grid-cols-4 grid-responsive" style="margin-bottom: var(--spacing-xl);">
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="stat-item">
+                                <span class="stat-value" id="totalStrategies">--</span>
+                                <div class="stat-label">Total Stratégies</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="stat-item">
+                                <span class="stat-value" id="activeStrategies">--</span>
+                                <div class="stat-label">Actives</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="stat-item">
+                                <span class="stat-value" id="totalSignals">--</span>
+                                <div class="stat-label">Signaux Total</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="stat-item">
+                                <span class="stat-value" id="totalOrders">--</span>
+                                <div class="stat-label">Ordres Total</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tableau des stratégies -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">Liste des Stratégies</div>
+                        <div class="card-subtitle">Toutes vos stratégies configurées</div>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-container">
+                            <table class="table" id="strategiesTable">
+                                <thead>
+                                    <tr>
+                                        <th>Nom</th>
+                                        <th>Description</th>
+                                        <th>Statut</th>
+                                        <th>Risk %</th>
+                                        <th>Max Positions</th>
+                                        <th>Symboles</th>
+                                        <th>Signaux</th>
+                                        <th>Ordres</th>
+                                        <th>Créée le</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="strategiesTableBody">
+                                    <tr>
+                                        <td colspan="10" class="text-center text-muted">
+                                            <div class="loading-content">
+                                                <div class="spinner"></div>
+                                                <p>Chargement des stratégies...</p>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="card-footer">
+                        <div class="pagination-container">
+                            <div class="pagination-info">
+                                <span id="paginationInfo">Affichage de 0 à 0 sur 0 stratégies</span>
+                            </div>
+                            <div class="pagination-controls">
+                                <button class="btn btn-sm btn-ghost" id="prevPageBtn" disabled>Précédent</button>
+                                <span class="pagination-pages" id="paginationPages"></span>
+                                <button class="btn btn-sm btn-ghost" id="nextPageBtn" disabled>Suivant</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Scripts -->
+    <script src="../js/config.js"></script>
+    <script src="../js/utils.js"></script>
+    <script src="../js/api.js"></script>
+    <script src="../js/theme.js"></script>
+    <script src="../components/navigation.js"></script>
+    <script src="../components/notifications.js"></script>
+    <script src="../components/modal.js"></script>
+    <script src="../js/strategies.js"></script>
+
+    <script>
+        // Initialisation de l'application
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialiser les composants
+            const navigation = new NavigationComponent();
+            document.getElementById('navigationContainer').innerHTML = navigation.render();
+            navigation.init();
+            
+            // Initialiser la page stratégies
+            const strategiesManager = new StrategiesManager();
+            strategiesManager.init();
+            
+            // Initialiser le thème
+            const themeManager = new ThemeManager();
+            themeManager.init();
+        });
+    </script>
+</body>
+</html>
