@@ -44,7 +44,27 @@ class APIClient {
     /**
      * Méthodes HTTP
      */
-    async get(endpoint, params = {}) {
+    // REMPLACER la méthode get() complète :
+async get(endpoint, params = {}) {
+    const searchParams = new URLSearchParams();
+    Object.keys(params).forEach(key => {
+        const value = params[key];
+        if (value !== null && value !== undefined) {
+            if (Array.isArray(value)) {
+                // Pour les arrays, ajouter chaque élément séparément
+                value.forEach(v => searchParams.append(key, v));
+            } else {
+                searchParams.append(key, value);
+            }
+        }
+    });
+    
+    const queryString = searchParams.toString();
+    const url = queryString ? `${endpoint}?${queryString}` : endpoint;
+    
+    return this.request(url, { method: 'GET' });
+}
+ /*   async get(endpoint, params = {}) {
         const searchParams = new URLSearchParams();
         Object.keys(params).forEach(key => {
             if (params[key] !== null && params[key] !== undefined) {
@@ -56,7 +76,7 @@ class APIClient {
         const url = queryString ? `${endpoint}?${queryString}` : endpoint;
         
         return this.request(url, { method: 'GET' });
-    }
+    }*/
 
     async post(endpoint, data = {}) {
         return this.request(endpoint, {

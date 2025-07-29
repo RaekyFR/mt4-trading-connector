@@ -136,7 +136,11 @@ class Dashboard {
      */
     async loadPositions() {
         try {
-            const response = await window.api.getOrders({ status: ['PLACED', 'FILLED'], limit: 10 });
+          //  const response = await window.api.getOrders({ status: ['PLACED', 'FILLED'], limit: 10 });
+          const response = await window.api.getOrders({ 
+    status: ['PLACED', 'FILLED'], 
+    limit: 10 
+});
             this.data.positions = response.data || [];
             this.updatePositionsDisplay(this.data.positions);
         } catch (error) {

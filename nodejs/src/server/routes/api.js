@@ -14,34 +14,46 @@ router.get('/account/state', async (req, res) => {
     const dbState = await req.prisma.accountState.findFirst({
       orderBy: { lastUpdate: 'desc' }
     });
+    console.log('🔍 [DEBUG] DB state:', JSON.stringify(dbState, null, 2));
 
     // Essayer de récupérer l'état en temps réel depuis MT4
     let mt4State = null;
     try {
       const balanceResult = await req.mt4Connector.getBalance();
+      console.log('[DEBUG] MT4 balanceResult:', JSON.stringify(balanceResult, null, 2));
+      // APRÈS cette ligne : const balanceResult = await req.mt4Connector.getBalance();
+console.log('🔍 [DEBUG] MT4 balanceResult complet:', JSON.stringify(balanceResult, null, 2));
       if (balanceResult.success) {
         mt4State = balanceResult;
         
         // Mettre à jour la DB
         await req.prisma.accountState.create({
           data: {
-            balance: balanceResult.balance,
-            equity: balanceResult.equity,
-            margin: balanceResult.margin,
-            freeMargin: balanceResult.freeMargin,
-            marginLevel: balanceResult.marginLevel || 0
+                balance: balanceResult.balance || 0,
+                equity: balanceResult.equity || balanceResult.balance || 0,
+                margin: balanceResult.margin || 0,
+                freeMargin: balanceResult.freeMargin || (balanceResult.balance || 0),
+                marginLevel: balanceResult.marginLevel || 0
           }
         });
       }
     } catch (error) {
       console.error('[API] Erreur récupération MT4:', error);
+      
     }
+const responseData = {
+    current: mt4State || dbState,
+    lastUpdate: dbState?.lastUpdate,
+    isRealTime: !!mt4State
+};
+console.log('🔍 [DEBUG] Response envoyée au frontend:', JSON.stringify(responseData, null, 2));
 
-    res.json({
+res.json(responseData);
+   /* res.json({
       current: mt4State || dbState,
       lastUpdate: dbState?.lastUpdate,
       isRealTime: !!mt4State
-    });
+    });*/
 
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -274,9 +286,21 @@ router.get('/orders', async (req, res) => {
     } = req.query;
 
     const where = {};
-    if (status) {
-      where.status = Array.isArray(status) ? { in: status } : status;
+    // REMPLACER la section where.status :
+if (status) {
+    // Gérer les status multiples (array ou string)
+    if (Array.isArray(status)) {
+        where.status = { in: status };
+    } else if (typeof status === 'string' && status.includes(',')) {
+        // Si c'est une string avec virgules, la split
+        where.status = { in: status.split(',') };
+    } else {
+        where.status = status;
     }
+}
+  /*  if (status) {
+      where.status = Array.isArray(status) ? { in: status } : status;
+    }*/
     if (symbol) where.symbol = symbol;
     if (strategyId) where.strategyId = strategyId;
 
