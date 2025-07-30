@@ -14,15 +14,15 @@ router.get('/account/state', async (req, res) => {
     const dbState = await req.prisma.accountState.findFirst({
       orderBy: { lastUpdate: 'desc' }
     });
-    console.log('🔍 [DEBUG] DB state:', JSON.stringify(dbState, null, 2));
+    //console.log('🔍 [DEBUG] DB state:', JSON.stringify(dbState, null, 2));
 
     // Essayer de récupérer l'état en temps réel depuis MT4
     let mt4State = null;
     try {
       const balanceResult = await req.mt4Connector.getBalance();
-      console.log('[DEBUG] MT4 balanceResult:', JSON.stringify(balanceResult, null, 2));
+  //    console.log('[DEBUG] MT4 balanceResult:', JSON.stringify(balanceResult, null, 2));
       // APRÈS cette ligne : const balanceResult = await req.mt4Connector.getBalance();
-console.log('🔍 [DEBUG] MT4 balanceResult complet:', JSON.stringify(balanceResult, null, 2));
+      //console.log('🔍 [DEBUG] MT4 balanceResult complet:', JSON.stringify(balanceResult, null, 2));
       if (balanceResult.success) {
         mt4State = balanceResult;
         
@@ -46,7 +46,7 @@ const responseData = {
     lastUpdate: dbState?.lastUpdate,
     isRealTime: !!mt4State
 };
-console.log('🔍 [DEBUG] Response envoyée au frontend:', JSON.stringify(responseData, null, 2));
+//console.log('🔍 [DEBUG] Response envoyée au frontend:', JSON.stringify(responseData, null, 2));
 
 res.json(responseData);
    /* res.json({
@@ -317,6 +317,93 @@ if (status) {
       }),
       req.prisma.order.count({ where })
     ]);
+
+    try {
+    // Récupérer les positions MT4
+    const mt4Orders = await req.mt4Connector.getOpenOrders();
+    console.log('🔍 [DEBUG] MT4 Orders:', JSON.stringify(mt4Orders, null, 2));
+    
+    if (mt4Orders && mt4Orders.length > 0) {
+        const formattedOrders = mt4Orders.map(order => {
+            // Convertir le type numérique MT4 en string
+            const orderType = order.type === 0 ? 'BUY' :
+                             order.type === 1 ? 'SELL' :
+                             order.type === 2 ? 'BUY_LIMIT' :
+                             order.type === 3 ? 'SELL_LIMIT' :
+                             order.type === 4 ? 'BUY_STOP' :
+                             order.type === 5 ? 'SELL_STOP' : 'UNKNOWN';
+            
+            return {
+                id: `mt4-${order.ticket}`,
+                ticket: order.ticket,
+                symbol: order.symbol,
+                type: orderType,
+                lots: order.lots,
+                openPrice: order.openPrice,
+                profit: order.profit || 0,
+                status: 'PLACED',
+                createdAt: new Date(),
+                strategy: { name: 'MT4' },
+                signal: { 
+                    action: orderType.includes('BUY') ? 'buy' : 'sell', 
+                    symbol: order.symbol 
+                }
+            };
+        });
+        
+        return res.json({
+            data: formattedOrders,
+            total: formattedOrders.length,
+            limit: parseInt(limit),
+            offset: parseInt(offset)
+        });
+    }
+} catch (error) {
+    console.error('[API] Erreur récupération orders MT4:', error);
+}
+
+    // AJOUTER pour tester l'interface :
+/*if (orders.length === 0) {
+    // Positions de test pour voir l'interface
+    const testPositions = [
+        {
+            id: 'test-1',
+            ticket: 123456,
+            symbol: 'EURUSD',
+            type: 'BUY',
+            lots: 0.10,
+            openPrice: 1.0850,
+            profit: 25.50,
+            status: 'PLACED',
+            createdAt: new Date(),
+            strategy: { name: 'Test' },
+            signal: { action: 'buy', symbol: 'EURUSD' }
+        },
+        {
+            id: 'test-2',
+            ticket: 123457,
+            symbol: 'GBPUSD', 
+            type: 'SELL',
+            lots: 0.05,
+            openPrice: 1.2650,
+            profit: -12.30,
+            status: 'PLACED',
+            createdAt: new Date(),
+            strategy: { name: 'Test' },
+            signal: { action: 'sell', symbol: 'GBPUSD' }
+        }
+    ];
+    
+    console.log('⚠️ [TEST] Positions simulées ajoutées');
+    
+    res.json({
+        data: testPositions,
+        total: testPositions.length,
+        limit: parseInt(limit),
+        offset: parseInt(offset)
+    });
+    return; // Important !
+}*/
 
     res.json({
       data: orders,

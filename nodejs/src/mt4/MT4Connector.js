@@ -6,7 +6,7 @@ const { v4: uuidv4 } = require('uuid');
 class MT4Connector {
   constructor(config) {
     this.folder = config.folder;
-    this.commandTimeout = config.commandTimeout || 5000;
+    this.commandTimeout = config.commandTimeout || 10000;
     this.responseCheckInterval = config.responseCheckInterval || 500;
     
     // Fichiers de communication
@@ -31,10 +31,11 @@ class MT4Connector {
     await this.cleanup();
     
     // Vérifier la connexion
-    const connected = await this.checkConnection();
+    /*const connected = await this.checkConnection();
     if (!connected) {
       throw new Error('Impossible de se connecter à MT4');
-    }
+    }*/
+   this.isConnected = true
     
     // Démarrer la vérification des réponses
     this.startResponseChecker();
@@ -119,9 +120,9 @@ class MT4Connector {
         'utf8'
       );
 
-      // Attendre la réponse (max 3 secondes)
+      // Attendre la réponse (max 5 secondes)
       const startTime = Date.now();
-      while (Date.now() - startTime < 3000) {
+      while (Date.now() - startTime < 5000) {
         try {
           const response = await fs.readFile(this.pingResponseFile, 'utf8');
           const data = JSON.parse(response);
@@ -135,7 +136,7 @@ class MT4Connector {
           // Fichier pas encore prêt
         }
         
-        await this.sleep(100);
+        await this.sleep(200);
       }
 
       this.isConnected = false;
@@ -277,7 +278,8 @@ class MT4Connector {
    * Récupère la liste des ordres ouverts
    */
   async getOpenOrders() {
-    const result = await this.sendCommand({ command: 'getOpenOrders' });
+    //const result = await this.sendCommand({ command: 'getOpenOrders' });
+    const result = await this.sendCommand({ command: 'getAllMarketOrders' });
     return result.orders || [];
   }
 
