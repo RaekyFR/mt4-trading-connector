@@ -270,7 +270,7 @@ class MT4Connector {
       command: 'closeMarketOrder',
       ticket: ticket
     };
-
+console.log("MT4Connector : closeOrder :"+command);
     return await this.sendCommand(command);
   }
 
@@ -292,6 +292,32 @@ class MT4Connector {
       days: days 
     });
     return result.orders || [];
+  }
+  
+  /**
+   * Modifie les niveaux SL/TP d'un ordre
+   */
+  async modifyOrder(ticket, stopLoss = 0, takeProfit = 0) {
+    const command = {
+      command: 'modifyOrder',
+      ticket: ticket,
+      sl: stopLoss,
+      tp: takeProfit
+    };
+
+    return await this.sendCommand(command);
+  }
+
+  /**
+   * Récupère les détails d'un ordre spécifique
+   */
+  async getOrderDetails(ticket) {
+    const command = {
+      command: 'getOrderDetails',
+      ticket: ticket
+    };
+
+    return await this.sendCommand(command);
   }
 
   /**

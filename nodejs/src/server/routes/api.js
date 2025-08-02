@@ -422,22 +422,25 @@ if (status) {
  * Ferme un ordre spécifique
  */
 router.post('/orders/close/:ticket', async (req, res) => {
+  console.log("api : demande fermeture de ticket :"+parseInt(req.params.ticket));
   try {
     const ticket = parseInt(req.params.ticket);
-    
+    /*console.log("api : verification ticket :"+parseInt(req.params.ticket));
     // Vérifier que l'ordre existe
     const order = await req.prisma.order.findUnique({
       where: { ticket }
     });
 
     if (!order) {
+      console.log("api : pas de ticket :"+parseInt(req.params.ticket));
       return res.status(404).json({ error: 'Ordre non trouvé' });
     }
 
     if (!['PLACED', 'FILLED'].includes(order.status)) {
+      console.log("api : deja ferme ticket :"+parseInt(req.params.ticket));
       return res.status(400).json({ error: 'Ordre déjà fermé ou invalide' });
-    }
-
+    }*/
+ console.log("api : envoi ordre fermeture ticket :"+parseInt(req.params.ticket));
     // Envoyer la commande de fermeture à MT4
     const result = await req.mt4Connector.closeOrder(ticket);
 
@@ -527,6 +530,78 @@ router.post('/orders/close-all', async (req, res) => {
     });
 
   } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/orders/modify/:ticket
+ * Modifie les niveaux SL/TP d'une position
+ */
+router.post('/orders/modify/:ticket', async (req, res) => {
+  try {
+    const ticket = parseInt(req.params.ticket);
+    const { stopLoss, takeProfit } = req.body;
+    
+    // Vérifier que l'ordre existe
+    const order = await req.prisma.order.findUnique({
+      where: { ticket }
+    });
+
+    if (!order) {
+      return res.status(404).json({ error: 'Ordre non trouvé' });
+    }
+
+    if (!['PLACED', 'FILLED'].includes(order.status)) {
+      return res.status(400).json({ error: 'Impossible de modifier cet ordre' });
+    }
+
+    // Envoyer la commande de modification à MT4
+    const command = {
+      command: 'modifyOrder',
+      ticket: ticket,
+      stopLoss: stopLoss || 0,
+      takeProfit: takeProfit || 0
+    };
+
+    const result = await req.mt4Connector.sendCommand(command);
+
+    if (result.success) {
+      // Mettre à jour l'ordre en base
+      await req.prisma.order.update({
+        where: { ticket },
+        data: {
+          stopLoss: stopLoss || order.stopLoss,
+          takeProfit: takeProfit || order.takeProfit,
+          updatedAt: new Date()
+        }
+      });
+
+      // Log de l'action
+      await req.prisma.auditLog.create({
+        data: {
+          action: 'MODIFY_ORDER',
+          entityType: 'ORDER',
+          entityId: order.id,
+          severity: 'INFO',
+          details: `SL: ${stopLoss || 'inchangé'}, TP: ${takeProfit || 'inchangé'}`
+        }
+      });
+
+      res.json({
+        success: true,
+        stopLoss: stopLoss || order.stopLoss,
+        takeProfit: takeProfit || order.takeProfit
+      });
+    } else {
+      res.status(400).json({
+        success: false,
+        error: result.error || 'Modification échouée'
+      });
+    }
+
+  } catch (error) {
+    console.error('[API] Erreur modification ordre:', error);
     res.status(500).json({ error: error.message });
   }
 });

@@ -1,0 +1,215 @@
+/* css/trading.css - Styles spécifiques pour l'interface trading */
+
+/* Indicateurs de statut */
+.status-indicator { 
+    width: 8px; 
+    height: 8px; 
+    border-radius: 50%; 
+    display: inline-block; 
+    margin-left: 0.5rem; 
+}
+.status-indicator.connected { background-color: #0e8420; }
+.status-indicator.disconnected { background-color: #c7162b; }
+.status-indicator.warning { background-color: #f99b11; }
+
+/* Changements de métriques */
+.metric-change.positive { color: #0e8420; }
+.metric-change.negative { color: #c7162b; }
+
+/* P&L des positions */
+.position-pnl.positive { color: #0e8420; }
+.position-pnl.negative { color: #c7162b; }
+
+/* Navigation fixe */
+.navbar-fixed { 
+    position: fixed; 
+    top: 0; 
+    left: 0; 
+    right: 0; 
+    z-index: 100; 
+    background: white; 
+    border-bottom: 1px solid #d9d9d9; 
+}
+.main-offset { margin-top: 4rem; }
+
+/* Positions améliorées */
+.position-item {
+    padding: 1rem;
+    margin-bottom: 0.75rem;
+    border: 1px solid #d9d9d9;
+    border-radius: 4px;
+    background: #fafafa;
+}
+
+.position-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.75rem;
+}
+
+.position-symbol {
+    font-size: 1.1rem;
+    font-weight: bold;
+}
+
+.position-type {
+    margin-left: 0.5rem;
+}
+
+.position-pnl-large {
+    font-size: 1.2rem;
+    font-weight: bold;
+}
+
+.position-details {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.position-detail {
+    text-align: center;
+}
+
+.position-detail-label {
+    display: block;
+    font-size: 0.8rem;
+    color: #666;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 0.25rem;
+}
+
+.position-detail-value {
+    font-weight: 500;
+    font-size: 0.95rem;
+}
+
+.position-actions {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+}
+
+/* Signaux */
+.signal-item {
+    padding: 0.75rem;
+    margin-bottom: 0.5rem;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    background: #fafafa;
+}
+
+.signal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+}
+
+.signal-symbol {
+    font-weight: bold;
+}
+
+.signal-meta {
+    font-size: 0.85rem;
+    color: #666;
+    margin-top: 0.25rem;
+}
+
+/* Modal custom pour SL/TP */
+.p-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.p-modal__dialog {
+    background: white;
+    border-radius: 4px;
+    min-width: 400px;
+    max-width: 90vw;
+}
+
+.p-modal__header {
+    padding: 1rem;
+    border-bottom: 1px solid #d9d9d9;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.p-modal__title {
+    margin: 0;
+    font-size: 1.1rem;
+}
+
+.p-modal__close {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    color: #666;
+}
+
+.p-modal__body {
+    padding: 1rem;
+}
+
+.p-modal__footer {
+    padding: 1rem;
+    border-top: 1px solid #d9d9d9;
+    display: flex;
+    gap: 0.5rem;
+    justify-content: flex-end;
+}
+
+.p-form-group {
+    margin-bottom: 1rem;
+}
+
+.p-form-label {
+    display: block;
+    margin-bottom: 0.25rem;
+    font-weight: 500;
+}
+
+.p-form-input {
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px solid #d9d9d9;
+    border-radius: 4px;
+    font-size: 0.95rem;
+}
+
+.p-form-input:focus {
+    outline: none;
+    border-color: #0066cc;
+    box-shadow: 0 0 0 2px rgba(0, 102, 204, 0.2);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .position-details {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .position-actions {
+        justify-content: center;
+    }
+    
+    .p-modal__dialog {
+        min-width: 90vw;
+        margin: 1rem;
+    }
+}

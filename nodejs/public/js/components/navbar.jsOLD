@@ -1,7 +1,7 @@
 // js/components/navbar.js
 
 /**
- * Gestionnaire de navigation utilisant Vanilla Framework CSS - Version française
+ * Gestionnaire de navigation utilisant Vanilla Framework CSS
  */
 class Navigation {
     constructor() {
@@ -153,7 +153,7 @@ class Navigation {
             }
 
         } catch (error) {
-            console.error(`Erreur chargement page ${page}:`, error);
+            console.error(`Error loading page ${page}:`, error);
             this.showErrorPage(error.message);
         }
     }
@@ -305,7 +305,7 @@ class Navigation {
                             <h1 class="p-heading--2">Ordres de Trading</h1>
                         </div>
                         <div class="col-6 u-align--right">
-                            <button class="p-button--negative" id="closeAllOrdersBtn">Tout Fermer</button>
+                            <button class="p-button--negative" id="closeAllOrdersBtn">Fermer Tout</button>
                             <button class="p-button--base" id="refreshOrdersBtn">Actualiser</button>
                         </div>
                     </div>
@@ -344,7 +344,7 @@ class Navigation {
                 <div class="p-strip">
                     <div class="row">
                         <div class="col-8">
-                            <h1 class="p-heading--2">Gestion des Risques</h1>
+                            <h1 class="p-heading--2">Risk Management</h1>
                         </div>
                         <div class="col-4 u-align--right">
                             <button class="p-button--positive" id="saveRiskConfigBtn">Sauvegarder</button>
@@ -385,15 +385,15 @@ class Navigation {
                 <div class="p-strip">
                     <div class="row">
                         <div class="col-8">
-                            <h1 class="p-heading--2">Historique d'Audit</h1>
+                            <h1 class="p-heading--2">Logs d'Audit</h1>
                         </div>
                         <div class="col-4">
                             <select class="p-form-field__select" id="severityFilter">
                                 <option value="">Tous les niveaux</option>
                                 <option value="DEBUG">Debug</option>
                                 <option value="INFO">Info</option>
-                                <option value="WARNING">Attention</option>
-                                <option value="ERROR">Erreur</option>
+                                <option value="WARNING">Warning</option>
+                                <option value="ERROR">Error</option>
                             </select>
                         </div>
                     </div>
@@ -429,7 +429,7 @@ class Navigation {
                         <p class="p-heading--4">Page Non Trouvée</p>
                         <p>La page demandée n'existe pas.</p>
                         <button class="p-button--positive" onclick="window.navigation.navigateTo('dashboard')">
-                            Retour au Tableau de Bord
+                            Retour au Dashboard
                         </button>
                     </div>
                 </div>
@@ -496,7 +496,7 @@ class Navigation {
                                 </div>
                                 <hr class="p-rule">
                                 <div class="u-align--right">
-                                    <button class="p-button--base is-dense" onclick="editStrategy('${strategy.id}')">Modifier</button>
+                                    <button class="p-button--base is-dense" onclick="editStrategy('${strategy.id}')">Éditer</button>
                                     <button class="p-button--negative is-dense" onclick="deleteStrategy('${strategy.id}')">Supprimer</button>
                                 </div>
                             </div>
@@ -536,13 +536,6 @@ class Navigation {
             `;
         }
 
-        const statusLabels = {
-            'PENDING': 'En attente',
-            'VALIDATED': 'Validé',
-            'PROCESSED': 'Traité',
-            'REJECTED': 'Rejeté'
-        };
-
         return `
             <div class="p-card">
                 <div class="p-card__header">
@@ -568,8 +561,8 @@ class Navigation {
                                     <td>${signal.strategy?.name || 'N/A'}</td>
                                     <td><span class="p-label--${signal.action === 'buy' ? 'positive' : 'negative'}">${signal.action.toUpperCase()}</span></td>
                                     <td>${signal.symbol}</td>
-                                    <td>${signal.price ? window.api.formatCurrency(signal.price) : 'Marché'}</td>
-                                    <td><span class="p-label--information">${statusLabels[signal.status] || signal.status}</span></td>
+                                    <td>${signal.price ? window.api.formatCurrency(signal.price) : 'Market'}</td>
+                                    <td><span class="p-label--information">${signal.status}</span></td>
                                     <td>
                                         <button class="p-button--base is-dense" onclick="viewSignal('${signal.id}')">Voir</button>
                                     </td>
@@ -700,7 +693,7 @@ class Navigation {
                     <div class="row">
                         <div class="col-6 u-align--center">
                             <p class="p-heading--4">${window.api.formatCurrency(current.equity)}</p>
-                            <p class="p-text--small">Équité</p>
+                            <p class="p-text--small">Equity</p>
                         </div>
                         <div class="col-6 u-align--center">
                             <p class="p-heading--4">${current.openPositions}</p>
@@ -852,7 +845,7 @@ class Navigation {
                 <div class="p-modal__dialog">
                     <div class="p-modal__header">
                         <h2 class="p-modal__title">${title}</h2>
-                        <button class="p-modal__close" onclick="closeModal('strategyModal')">Fermer</button>
+                        <button class="p-modal__close" onclick="closeModal('strategyModal')">Close</button>
                     </div>
                     <div class="p-form-validation">
                         <div class="p-form-validation__field">
