@@ -341,6 +341,8 @@ if (status) {
                 lots: order.lots,
                 openPrice: order.openPrice,
                 profit: order.profit || 0,
+                sl: order.sl || 0,              // 🔧 AJOUTÉ
+                tp: order.tp || 0,              // 🔧 AJOUTÉ
                 status: 'PLACED',
                 createdAt: new Date(),
                 strategy: { name: 'MT4' },
@@ -362,49 +364,6 @@ if (status) {
     console.error('[API] Erreur récupération orders MT4:', error);
 }
 
-    // AJOUTER pour tester l'interface :
-/*if (orders.length === 0) {
-    // Positions de test pour voir l'interface
-    const testPositions = [
-        {
-            id: 'test-1',
-            ticket: 123456,
-            symbol: 'EURUSD',
-            type: 'BUY',
-            lots: 0.10,
-            openPrice: 1.0850,
-            profit: 25.50,
-            status: 'PLACED',
-            createdAt: new Date(),
-            strategy: { name: 'Test' },
-            signal: { action: 'buy', symbol: 'EURUSD' }
-        },
-        {
-            id: 'test-2',
-            ticket: 123457,
-            symbol: 'GBPUSD', 
-            type: 'SELL',
-            lots: 0.05,
-            openPrice: 1.2650,
-            profit: -12.30,
-            status: 'PLACED',
-            createdAt: new Date(),
-            strategy: { name: 'Test' },
-            signal: { action: 'sell', symbol: 'GBPUSD' }
-        }
-    ];
-    
-    console.log('⚠️ [TEST] Positions simulées ajoutées');
-    
-    res.json({
-        data: testPositions,
-        total: testPositions.length,
-        limit: parseInt(limit),
-        offset: parseInt(offset)
-    });
-    return; // Important !
-}*/
-
     res.json({
       data: orders,
       total,
@@ -425,14 +384,13 @@ router.post('/orders/close/:ticket', async (req, res) => {
   console.log("api : demande fermeture de ticket :"+parseInt(req.params.ticket));
   try {
     const ticket = parseInt(req.params.ticket);
-    /*console.log("api : verification ticket :"+parseInt(req.params.ticket));
+    /*
     // Vérifier que l'ordre existe
     const order = await req.prisma.order.findUnique({
       where: { ticket }
     });
 
     if (!order) {
-      console.log("api : pas de ticket :"+parseInt(req.params.ticket));
       return res.status(404).json({ error: 'Ordre non trouvé' });
     }
 
@@ -440,7 +398,7 @@ router.post('/orders/close/:ticket', async (req, res) => {
       console.log("api : deja ferme ticket :"+parseInt(req.params.ticket));
       return res.status(400).json({ error: 'Ordre déjà fermé ou invalide' });
     }*/
- console.log("api : envoi ordre fermeture ticket :"+parseInt(req.params.ticket));
+ 
     // Envoyer la commande de fermeture à MT4
     const result = await req.mt4Connector.closeOrder(ticket);
 
@@ -479,57 +437,38 @@ router.post('/orders/close/:ticket', async (req, res) => {
  */
 router.post('/orders/close-all', async (req, res) => {
   try {
-    const { strategyId, symbol } = req.body;
-
-    const where = {
-      status: { in: ['PLACED', 'FILLED'] },
-      ticket: { not: null }
-    };
+    console.log('[API] Demande fermeture de toutes les positions');
     
-    if (strategyId) where.strategyId = strategyId;
-    if (symbol) where.symbol = symbol;
+    // Envoyer la commande directement à MT4 pour qu'il ferme tout
+    const result = await req.mt4Connector.closeAllOrders();
 
-    const openOrders = await req.prisma.order.findMany({ where });
-
-    const results = [];
-    for (const order of openOrders) {
-      try {
-        const result = await req.mt4Connector.closeOrder(order.ticket);
-        
-        if (result.success) {
-          await req.prisma.order.update({
-            where: { id: order.id },
-            data: {
-              status: 'CLOSED',
-              closeTime: new Date(),
-              closePrice: result.closePrice,
-              profit: result.profit
-            }
-          });
+    if (result.success) {
+      // Log de l'action
+      await req.prisma.auditLog.create({
+        data: {
+          action: 'CLOSE_ALL_ORDERS',
+          entityType: 'ORDER',
+          entityId: 'ALL',
+          severity: 'INFO',
+          details: `Fermeture de toutes les positions demandée`
         }
+      }).catch(() => {}); // Ignorer l'erreur de log
 
-        results.push({
-          ticket: order.ticket,
-          success: result.success,
-          error: result.error
-        });
-
-      } catch (error) {
-        results.push({
-          ticket: order.ticket,
-          success: false,
-          error: error.message
-        });
-      }
+      res.json({
+        success: true,
+        message: 'Toutes les positions ont été fermées',
+        closedCount: result.closedCount || 0,
+        totalCount: result.totalCount || 0
+      });
+    } else {
+      res.status(400).json({
+        success: false,
+        error: result.error || 'Échec fermeture positions'
+      });
     }
 
-    res.json({
-      closedCount: results.filter(r => r.success).length,
-      totalCount: results.length,
-      results
-    });
-
   } catch (error) {
+    console.error('[API] Erreur fermeture toutes positions:', error);
     res.status(500).json({ error: error.message });
   }
 });

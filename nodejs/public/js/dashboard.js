@@ -326,27 +326,27 @@ class Dashboard {
 
         this.currentEditTicket = ticket;
         
-        // Remplir le modal avec placeholders si valeurs existantes
-        document.getElementById('editSymbol').value = position.symbol;
-        
-        const slInput = document.getElementById('editStopLoss');
-        const tpInput = document.getElementById('editTakeProfit');
-        
-        if (position.stopLoss) {
-            slInput.value = position.stopLoss;
-            slInput.placeholder = `Actuel: ${position.stopLoss}`;
-        } else {
-            slInput.value = '';
-            slInput.placeholder = 'Aucun SL défini';
-        }
-        
-        if (position.takeProfit) {
-            tpInput.value = position.takeProfit;
-            tpInput.placeholder = `Actuel: ${position.takeProfit}`;
-        } else {
-            tpInput.value = '';
-            tpInput.placeholder = 'Aucun TP défini';
-        }
+            // Remplir le modal avec placeholders si valeurs existantes
+document.getElementById('editSymbol').value = position.symbol;
+
+const slInput = document.getElementById('editStopLoss');
+const tpInput = document.getElementById('editTakeProfit');
+
+if (position.sl && position.sl > 0) {
+    slInput.value = position.sl;
+    slInput.placeholder = `Actuel: ${position.sl}`;
+} else {
+    slInput.value = '';
+    slInput.placeholder = 'Aucun SL défini';
+}
+
+if (position.tp && position.tp > 0) {
+    tpInput.value = position.tp;
+    tpInput.placeholder = `Actuel: ${position.tp}`;
+} else {
+    tpInput.value = '';
+    tpInput.placeholder = 'Aucun TP défini';
+}
         
         // Afficher le modal
         document.getElementById('editPositionModal').style.display = 'block';
