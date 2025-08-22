@@ -432,44 +432,56 @@ router.post('/orders/close/:ticket', async (req, res) => {
 });
 
 /**
- * POST /api/orders/close-all
- * Ferme toutes les positions ouvertes
+ * POST /api/orders/modify/:ticket
+ * Modifie les niveaux SL/TP d'une position
  */
-router.post('/orders/close-all', async (req, res) => {
+router.post('/orders/modify/:ticket', async (req, res) => {
   try {
-    console.log('[API] Demande fermeture de toutes les positions');
+    const ticket = parseInt(req.params.ticket);
+    const { stopLoss, takeProfit } = req.body;
     
-    // Envoyer la commande directement à MT4 pour qu'il ferme tout
-    const result = await req.mt4Connector.closeAllOrders();
+    console.log(`[API] Modification ordre ${ticket} - SL: ${stopLoss}, TP: ${takeProfit}`);
+
+    // Pour les positions MT4 directes, envoyer directement la commande à MT4
+    // SANS vérifier en DB car les positions viennent directement de MT4
+    const result = await req.mt4Connector.modifyOrder(ticket, stopLoss || 0, takeProfit || 0);
 
     if (result.success) {
-      // Log de l'action
-      await req.prisma.auditLog.create({
-        data: {
-          action: 'CLOSE_ALL_ORDERS',
-          entityType: 'ORDER',
-          entityId: 'ALL',
-          severity: 'INFO',
-          details: `Fermeture de toutes les positions demandée`
-        }
-      }).catch(() => {}); // Ignorer l'erreur de log
+      // Log de l'action (optionnel, sans bloquer si DB indisponible)
+      try {
+        await req.prisma.auditLog.create({
+          data: {
+            action: 'MODIFY_ORDER',
+            entityType: 'ORDER',
+            entityId: `MT4-${ticket}`,
+            severity: 'INFO',
+            details: `Ticket ${ticket} - SL: ${stopLoss || 'inchangé'}, TP: ${takeProfit || 'inchangé'}`
+          }
+        });
+      } catch (logError) {
+        console.warn('[API] Erreur log (ignorée):', logError.message);
+      }
 
       res.json({
         success: true,
-        message: 'Toutes les positions ont été fermées',
-        closedCount: result.closedCount || 0,
-        totalCount: result.totalCount || 0
+        ticket: ticket,
+        stopLoss: stopLoss || 0,
+        takeProfit: takeProfit || 0,
+        message: 'Position modifiée avec succès'
       });
     } else {
       res.status(400).json({
         success: false,
-        error: result.error || 'Échec fermeture positions'
+        error: result.error || 'Modification échouée'
       });
     }
 
   } catch (error) {
-    console.error('[API] Erreur fermeture toutes positions:', error);
-    res.status(500).json({ error: error.message });
+    console.error('[API] Erreur modification ordre:', error);
+    res.status(500).json({ 
+      success: false,
+      error: error.message 
+    });
   }
 });
 
@@ -483,6 +495,7 @@ router.post('/orders/modify/:ticket', async (req, res) => {
     const { stopLoss, takeProfit } = req.body;
     
     // Vérifier que l'ordre existe
+/*  Pas besoin de verifier l'ordre, il vient de MT4
     const order = await req.prisma.order.findUnique({
       where: { ticket }
     });
@@ -493,7 +506,7 @@ router.post('/orders/modify/:ticket', async (req, res) => {
 
     if (!['PLACED', 'FILLED'].includes(order.status)) {
       return res.status(400).json({ error: 'Impossible de modifier cet ordre' });
-    }
+    }*/
 
     // Envoyer la commande de modification à MT4
     const command = {

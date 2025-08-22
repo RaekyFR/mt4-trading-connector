@@ -432,6 +432,35 @@ async closeAllOrders() {
  /**
  * Modification du SL/TP
  */
+
+async modifyOrder(ticket, stopLoss = 0, takeProfit = 0) {
+  console.log(`[MT4Connector] Modification ordre ${ticket} - SL: ${stopLoss}, TP: ${takeProfit}`);
+  
+  const command = {
+    command: 'modifyOrder',
+    ticket: ticket,
+    sl: stopLoss,
+    tp: takeProfit
+  };
+
+  try {
+    const result = await this.sendCommand(command);
+    
+    console.log(`[MT4Connector] Résultat modification:`, result);
+    
+    return {
+      success: true,
+      ...result
+    };
+  } catch (error) {
+    console.error(`[MT4Connector] Erreur modification:`, error);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+}
+/*
 async savePositionChanges() {
     if (!this.currentEditTicket) return;
 
@@ -456,7 +485,7 @@ async savePositionChanges() {
         console.error('[Dashboard] Erreur modification:', error);
         window.notifications.error('Erreur', 'Impossible de modifier la position');
     }
-}
+}*/
 
   /**
    * Récupère la liste des ordres ouverts

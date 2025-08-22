@@ -366,14 +366,14 @@ if (position.tp && position.tp > 0) {
     async savePositionChanges() {
         if (!this.currentEditTicket) return;
 
-        const stopLoss = parseFloat(document.getElementById('editStopLoss').value) || null;
-        const takeProfit = parseFloat(document.getElementById('editTakeProfit').value) || null;
+        const stopLoss = parseFloat(document.getElementById('editStopLoss').value) || 0;
+        const takeProfit = parseFloat(document.getElementById('editTakeProfit').value) || 0;
+        console.log('tentative de modif, sl : '+stopLoss+' tp : '+takeProfit)
 
         try {
-            // TODO: Implémenter l'endpoint de modification dans l'API
-            // await window.api.modifyOrder(this.currentEditTicket, { stopLoss, takeProfit });
+         await window.api.modifyOrder(this.currentEditTicket, { stopLoss, takeProfit });
             
-            window.notifications.success('Position', 'Modifications sauvegardées (simulation)');
+            window.notifications.success('Position', 'Modifications sauvegardées');
             this.closeEditModal();
             await this.loadPositions();
             

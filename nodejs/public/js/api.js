@@ -176,6 +176,18 @@ async get(endpoint, params = {}) {
         return this.post('/api/orders/close-all', filters);
     }
 
+    /**
+     * Modifie un ordre (SL/TP)
+     */
+    async modifyOrder(ticket, { stopLoss, takeProfit }) {
+        console.log(`[API Client] Modification ordre ${ticket}`, { stopLoss, takeProfit });
+        
+        return this.post(`/api/orders/modify/${ticket}`, { 
+            stopLoss: stopLoss || 0, 
+            takeProfit: takeProfit || 0 
+        });
+    }
+
     // ==================== RISK MANAGEMENT ENDPOINTS ====================
 
     /**
