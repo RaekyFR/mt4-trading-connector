@@ -135,6 +135,60 @@ async get(endpoint, params = {}) {
         return this.put(`/api/strategies/${id}`, strategyData);
     }
 
+    
+/**
+ * Récupère une stratégie spécifique avec détails
+ */
+async getStrategy(strategyId) {
+  const response = await fetch(`${this.baseUrl}/strategies/${strategyId}`, {
+    headers: this.getHeaders()
+  });
+  return await this.handleResponse(response);
+}
+
+/**
+ * Supprime une stratégie
+ */
+async deleteStrategy(strategyId) {
+  const response = await fetch(`${this.baseUrl}/strategies/${strategyId}`, {
+    method: 'DELETE',
+    headers: this.getHeaders()
+  });
+  return await this.handleResponse(response);
+}
+
+/**
+ * Active/désactive une stratégie
+ */
+async toggleStrategy(strategyId) {
+  const response = await fetch(`${this.baseUrl}/strategies/${strategyId}/toggle`, {
+    method: 'PUT',
+    headers: this.getHeaders()
+  });
+  return await this.handleResponse(response);
+}
+
+/**
+ * Duplique une stratégie
+ */
+async duplicateStrategy(strategyId) {
+  const response = await fetch(`${this.baseUrl}/strategies/${strategyId}/duplicate`, {
+    method: 'POST',
+    headers: this.getHeaders()
+  });
+  return await this.handleResponse(response);
+}
+
+/**
+ * Récupère les performances d'une stratégie
+ */
+async getStrategyPerformance(strategyId, period = '30d') {
+  const response = await fetch(`${this.baseUrl}/strategies/${strategyId}/performance?period=${period}`, {
+    headers: this.getHeaders()
+  });
+  return await this.handleResponse(response);
+}
+
     // ==================== SIGNALS ENDPOINTS ====================
 
     /**

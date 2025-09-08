@@ -22,11 +22,13 @@ model Strategy {
   maxPositions      Int      @default(1)
   maxLotSize        Float    @default(0.1)
   defaultRiskPercent Float   @default(1.0) // % du capital par trade
+  riskRewardRatio   Float?   @default(2.0)  // Ratio Risk/Reward pour calcul TP
   
   // Trading parameters
   allowedSymbols    String   // JSON array ["EURUSD", "GBPUSD"]
   tradingHours      String?  // JSON object {"start": "08:00", "end": "22:00"}
-  
+  tradingDays       String?  // JSON des jours autorisés
+
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   

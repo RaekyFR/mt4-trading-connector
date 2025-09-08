@@ -72,8 +72,11 @@ class MT4Connector {
    * SOLUTION 1: Démarrer le processeur de queue
    */
   startQueueProcessor() {
+     if (this.queueProcessInterval) return;
+    console.log('[MT4Connector] 🚀 Démarrage processeur de queue');
     this.queueProcessInterval = setInterval(async () => {
       if (!this.isProcessingQueue && this.commandQueue.length > 0) {
+         console.log(`[MT4Connector] 🔍 Queue check: ${this.commandQueue.length} commandes`);
         await this.processNextCommand();
       }
     }, 100); // Vérifier toutes les 100ms
@@ -90,12 +93,14 @@ class MT4Connector {
     try {
       const { command, resolve, reject, timeout } = this.commandQueue.shift();
       
-      console.log(`[MT4Connector] 📤 Traitement queue: ${command.command} (${command.id})`);
+      console.log(`[MT4Connector] 🔄 Début traitement queue: ${command.command} (${command.id})`);
       
       // Attendre que le fichier précédent soit traité
+      console.log(`[MT4Connector] ⏳ Attente fichier libre...`);
       await this.waitForFileToBeProcessed();
       
       // Écrire la commande
+      console.log(`[MT4Connector] 📝 Écriture fichier command.txt`);
       await fs.writeFile(this.commandFile, JSON.stringify(command), 'utf8');
       
       console.log(`[MT4Connector] ⬆️ Commande envoyée: ${command.command} (${command.id})`);
@@ -118,7 +123,7 @@ class MT4Connector {
       }, timeout);
       
     } catch (error) {
-      console.error('[MT4Connector] Erreur traitement queue:', error);
+      console.error('[MT4Connector] ❌ Erreur processeur:', error);
     } finally {
       this.isProcessingQueue = false;
     }
@@ -169,8 +174,10 @@ class MT4Connector {
         reject,
         timeout: timeoutMs
       });
-      
-      console.log(`[MT4Connector] 📥 Commande ajoutée à la queue: ${command.command} (${commandId}) - Queue: ${this.commandQueue.length}`);
+ 
+  console.log(`[MT4Connector] 📥 Commande ajoutée à la queue: ${command.command} (${commandId}) - Queue: ${this.commandQueue.length}`);
+  console.log(`[MT4Connector] 📋 Queue actuelle:`, this.commandQueue.map(item => item.command.command));
+  
     });
   }
 

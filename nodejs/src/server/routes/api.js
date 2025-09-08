@@ -194,6 +194,355 @@ router.put('/strategies/:id', async (req, res) => {
   }
 });
 
+
+/**
+ * GET /api/strategies/:id
+ * Récupère une stratégie spécifique avec tous ses détails
+ */
+router.get('/strategies/:id', async (req, res) => {
+  try {
+    const strategy = await req.prisma.strategy.findUnique({
+      where: { id: req.params.id },
+      include: {
+        _count: {
+          select: {
+            signals: true,
+            orders: true
+          }
+        },
+        riskConfigs: {
+          where: { isActive: true },
+          take: 1
+        },
+        // Statistiques récentes
+        signals: {
+          where: {
+            createdAt: {
+              gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) // 30 derniers jours
+            }
+          },
+          select: {
+            id: true,
+            status: true,
+            createdAt: true
+          }
+        }
+      }
+    });
+
+    if (!strategy) {
+      return res.status(404).json({ error: 'Stratégie non trouvée' });
+    }
+
+    // Calculer les statistiques
+    const stats = {
+      totalSignals: strategy._count.signals,
+      totalOrders: strategy._count.orders,
+      recentSignals: strategy.signals.length,
+      successRate: strategy.signals.length > 0 ? 
+        (strategy.signals.filter(s => s.status === 'PROCESSED').length / strategy.signals.length * 100).toFixed(1) : 0
+    };
+
+    // Nettoyer les données pour la réponse
+    const { signals, ...strategyData } = strategy;
+    strategyData.stats = stats;
+
+    res.json(strategyData);
+
+  } catch (error) {
+    console.error('[API] Erreur récupération stratégie:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * DELETE /api/strategies/:id
+ * Supprime une stratégie et ses données associées
+ */
+router.delete('/strategies/:id', async (req, res) => {
+  try {
+    const strategyId = req.params.id;
+
+    // Vérifier que la stratégie existe
+    const strategy = await req.prisma.strategy.findUnique({
+      where: { id: strategyId },
+      include: {
+        _count: {
+          select: {
+            signals: true,
+            orders: true
+          }
+        }
+      }
+    });
+
+    if (!strategy) {
+      return res.status(404).json({ error: 'Stratégie non trouvée' });
+    }
+
+    // Vérifier s'il y a des ordres ouverts pour cette stratégie
+    const openOrders = await req.prisma.order.count({
+      where: {
+        strategyId: strategyId,
+        status: { in: ['PLACED', 'FILLED', 'PARTIAL'] }
+      }
+    });
+
+    if (openOrders > 0) {
+      return res.status(400).json({ 
+        error: 'Impossible de supprimer la stratégie',
+        reason: `${openOrders} ordre(s) encore ouvert(s). Fermez-les d'abord.`
+      });
+    }
+
+    // Supprimer dans l'ordre (contraintes FK)
+    await req.prisma.$transaction(async (tx) => {
+      // Supprimer les risk metrics liées aux ordres de cette stratégie
+      await tx.riskMetric.deleteMany({
+        where: {
+          order: {
+            strategyId: strategyId
+          }
+        }
+      });
+
+      // Supprimer les ordres fermés de la stratégie
+      await tx.order.deleteMany({
+        where: { strategyId: strategyId }
+      });
+
+      // Supprimer les signaux de la stratégie
+      await tx.signal.deleteMany({
+        where: { strategyId: strategyId }
+      });
+
+      // Supprimer les configurations de risque
+      await tx.riskConfig.deleteMany({
+        where: { strategyId: strategyId }
+      });
+
+      // Supprimer la stratégie
+      await tx.strategy.delete({
+        where: { id: strategyId }
+      });
+    });
+
+    // Log de l'action
+    await req.prisma.auditLog.create({
+      data: {
+        action: 'STRATEGY_DELETED',
+        entityType: 'STRATEGY',
+        entityId: strategyId,
+        severity: 'INFO',
+        details: JSON.stringify({
+          strategyName: strategy.name,
+          deletedSignals: strategy._count.signals,
+          deletedOrders: strategy._count.orders
+        })
+      }
+    });
+
+    res.json({
+      success: true,
+      message: `Stratégie "${strategy.name}" supprimée avec succès`,
+      deletedData: {
+        signals: strategy._count.signals,
+        orders: strategy._count.orders
+      }
+    });
+
+  } catch (error) {
+    console.error('[API] Erreur suppression stratégie:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * PUT /api/strategies/:id/toggle
+ * Active/désactive une stratégie
+ */
+router.put('/strategies/:id/toggle', async (req, res) => {
+  try {
+    const strategy = await req.prisma.strategy.findUnique({
+      where: { id: req.params.id }
+    });
+
+    if (!strategy) {
+      return res.status(404).json({ error: 'Stratégie non trouvée' });
+    }
+
+    const updatedStrategy = await req.prisma.strategy.update({
+      where: { id: req.params.id },
+      data: { isActive: !strategy.isActive }
+    });
+
+    // Log de l'action
+    await req.prisma.auditLog.create({
+      data: {
+        action: strategy.isActive ? 'STRATEGY_DISABLED' : 'STRATEGY_ENABLED',
+        entityType: 'STRATEGY',
+        entityId: req.params.id,
+        severity: 'INFO',
+        details: JSON.stringify({
+          strategyName: strategy.name,
+          newStatus: updatedStrategy.isActive
+        })
+      }
+    });
+
+    res.json({
+      success: true,
+      strategy: updatedStrategy,
+      message: `Stratégie ${updatedStrategy.isActive ? 'activée' : 'désactivée'}`
+    });
+
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/strategies/:id/duplicate
+ * Duplique une stratégie existante
+ */
+router.post('/strategies/:id/duplicate', async (req, res) => {
+  try {
+    const originalStrategy = await req.prisma.strategy.findUnique({
+      where: { id: req.params.id }
+    });
+
+    if (!originalStrategy) {
+      return res.status(404).json({ error: 'Stratégie non trouvée' });
+    }
+
+    // Créer le nom de la copie
+    const copyName = `${originalStrategy.name}_Copy`;
+    
+    // Vérifier que le nom n'existe pas déjà
+    let finalName = copyName;
+    let counter = 1;
+    while (await req.prisma.strategy.findUnique({ where: { name: finalName } })) {
+      finalName = `${copyName}_${counter}`;
+      counter++;
+    }
+
+    // Dupliquer la stratégie
+    const { id, createdAt, updatedAt, ...strategyData } = originalStrategy;
+    const duplicatedStrategy = await req.prisma.strategy.create({
+      data: {
+        ...strategyData,
+        name: finalName,
+        description: `Copie de ${originalStrategy.name}`,
+        isActive: false // Nouvelle stratégie inactive par défaut
+      }
+    });
+
+    res.json({
+      success: true,
+      strategy: duplicatedStrategy,
+      message: `Stratégie dupliquée sous le nom "${finalName}"`
+    });
+
+  } catch (error) {
+    console.error('[API] Erreur duplication stratégie:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/strategies/:id/performance
+ * Récupère les métriques de performance d'une stratégie
+ */
+router.get('/strategies/:id/performance', async (req, res) => {
+  try {
+    const { period = '30d' } = req.query;
+    
+    // Calculer la date de début
+    const startDate = new Date();
+    switch(period) {
+      case '7d': startDate.setDate(startDate.getDate() - 7); break;
+      case '30d': startDate.setDate(startDate.getDate() - 30); break;
+      case '90d': startDate.setDate(startDate.getDate() - 90); break;
+      case '1y': startDate.setFullYear(startDate.getFullYear() - 1); break;
+      default: startDate.setDate(startDate.getDate() - 30);
+    }
+
+    // Statistiques des signaux
+    const signalStats = await req.prisma.signal.groupBy({
+      by: ['status'],
+      where: {
+        strategyId: req.params.id,
+        createdAt: { gte: startDate }
+      },
+      _count: true
+    });
+
+    // Statistiques des ordres et P&L
+    const orderStats = await req.prisma.order.aggregate({
+      where: {
+        strategyId: req.params.id,
+        closeTime: { gte: startDate },
+        status: 'CLOSED'
+      },
+      _sum: { profit: true },
+      _count: true,
+      _avg: { profit: true }
+    });
+
+    // Ordres gagnants/perdants
+    const [winningOrders, losingOrders] = await Promise.all([
+      req.prisma.order.count({
+        where: {
+          strategyId: req.params.id,
+          closeTime: { gte: startDate },
+          status: 'CLOSED',
+          profit: { gt: 0 }
+        }
+      }),
+      req.prisma.order.count({
+        where: {
+          strategyId: req.params.id,
+          closeTime: { gte: startDate },
+          status: 'CLOSED',
+          profit: { lt: 0 }
+        }
+      })
+    ]);
+
+    // Calcul des métriques
+    const totalTrades = orderStats._count || 0;
+    const winRate = totalTrades > 0 ? (winningOrders / totalTrades) * 100 : 0;
+    const profitFactor = losingOrders > 0 ? 
+      Math.abs((orderStats._sum.profit || 0) / losingOrders) : 0;
+
+    res.json({
+      period,
+      signals: {
+        total: signalStats.reduce((sum, stat) => sum + stat._count, 0),
+        byStatus: signalStats.reduce((acc, stat) => {
+          acc[stat.status] = stat._count;
+          return acc;
+        }, {})
+      },
+      trades: {
+        total: totalTrades,
+        winning: winningOrders,
+        losing: losingOrders,
+        winRate: winRate.toFixed(1),
+        profitFactor: profitFactor.toFixed(2)
+      },
+      pnl: {
+        total: orderStats._sum.profit || 0,
+        average: orderStats._avg.profit || 0
+      }
+    });
+
+  } catch (error) {
+    console.error('[API] Erreur performance stratégie:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // ==================== SIGNALS ====================
 
 /**

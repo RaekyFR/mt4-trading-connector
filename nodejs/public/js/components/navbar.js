@@ -1,4 +1,4 @@
-// js/components/navbar.js
+// public/js/components/navbar.js
 
 /**
  * Gestionnaire de navigation utilisant Vanilla Framework CSS - Version française
@@ -184,59 +184,59 @@ class Navigation {
         }
     }
 
-    /**
-     * Charge la page des stratégies avec Vanilla Framework
-     */
-    async loadStrategiesPage() {
+ /**
+ * Charge la page des stratégies (délègue au StrategiesManager)
+ */
+async loadStrategiesPage() {
+    // Charger le script strategies.js si pas déjà fait
+    if (!window.strategiesManager) {
+        await this.loadScript('/js/strategies.js');
+        // Attendre un peu que le script s'initialise
+        await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    
+    // Initialiser ou rafraîchir la page strategies
+    if (window.strategiesManager) {
+        await window.strategiesManager.refresh();
+    } else {
+        // Fallback si le script n'a pas pu se charger
         const mainContent = document.querySelector('main');
-        
-        try {
-            const strategies = await window.api.getStrategies();
-            
-            const html = `
-                <div class="p-strip">
-                    <div class="row">
-                        <div class="col-8">
-                            <h1 class="p-heading--2">Stratégies de Trading</h1>
-                        </div>
-                        <div class="col-4 u-align--right">
-                            <button class="p-button--positive" id="addStrategyBtn">
-                                Nouvelle Stratégie
-                            </button>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="p-strip is-shallow">
-                    <div class="row">
-                        <div class="col-12">
-                            ${this.renderStrategies(strategies)}
-                        </div>
-                    </div>
-                </div>
-            `;
-            
-            mainContent.innerHTML = html;
-            this.attachStrategiesEvents();
-            
-        } catch (error) {
-            mainContent.innerHTML = `
-                <div class="p-strip">
-                    <div class="row">
-                        <div class="col-12">
-                            <div class="p-notification--negative">
-                                <div class="p-notification__content">
-                                    <h5 class="p-notification__title">Erreur de chargement</h5>
-                                    <p class="p-notification__message">Impossible de charger les stratégies: ${error.message}</p>
-                                    <button class="p-button--positive" onclick="window.location.reload()">Réessayer</button>
-                                </div>
+        mainContent.innerHTML = `
+            <div class="p-strip">
+                <div class="row">
+                    <div class="col-12">
+                        <div class="p-notification--negative">
+                            <div class="p-notification__content">
+                                <h5 class="p-notification__title">Erreur de chargement</h5>
+                                <p class="p-notification__message">Impossible de charger la page des stratégies</p>
+                                <button class="p-button--positive" onclick="window.location.reload()">Réessayer</button>
                             </div>
                         </div>
                     </div>
                 </div>
-            `;
-        }
+            </div>
+        `;
     }
+}
+
+/**
+ * Charge un script JavaScript dynamiquement
+ */
+async loadScript(src) {
+    return new Promise((resolve, reject) => {
+        // Vérifier si le script est déjà chargé
+        if (document.querySelector(`script[src="${src}"]`)) {
+            resolve();
+            return;
+        }
+        
+        const script = document.createElement('script');
+        script.src = src;
+        script.onload = resolve;
+        script.onerror = reject;
+        document.head.appendChild(script);
+    });
+}
 
     /**
      * Charge la page des signaux
@@ -461,7 +461,7 @@ class Navigation {
 
     // ==================== RENDER METHODS avec Vanilla Framework ====================
 
-    renderStrategies(strategies) {
+   /* renderStrategies(strategies) {
         if (strategies.length === 0) {
             return `
                 <div class="p-card">
@@ -505,7 +505,7 @@ class Navigation {
                 `).join('')}
             </div>
         `;
-    }
+    }*/
 
     renderSignalFilters(filters) {
         return `
@@ -785,11 +785,11 @@ class Navigation {
 
     // ==================== EVENT HANDLERS ====================
 
-    attachStrategiesEvents() {
+   /* attachStrategiesEvents() {
         document.getElementById('addStrategyBtn')?.addEventListener('click', () => {
             this.openStrategyModal();
         });
-    }
+    }*/
 
     attachSignalsEvents() {
         document.getElementById('applyFiltersBtn')?.addEventListener('click', () => {
@@ -843,7 +843,7 @@ class Navigation {
 
     // ==================== MODAL & FORMS avec Vanilla Framework ====================
 
-    openStrategyModal(strategy = null) {
+  /*  openStrategyModal(strategy = null) {
         const isEdit = !!strategy;
         const title = isEdit ? 'Modifier la Stratégie' : 'Nouvelle Stratégie';
         
@@ -905,16 +905,16 @@ class Navigation {
         `;
         
         document.body.insertAdjacentHTML('beforeend', modalHTML);
-    }
+    }*/
 
-    parseSymbols(allowedSymbols) {
+   /* parseSymbols(allowedSymbols) {
         if (!allowedSymbols) return '';
         try {
             return JSON.parse(allowedSymbols).join(', ');
         } catch {
             return allowedSymbols;
         }
-    }
+    }*/
 
     gatherRiskConfig() {
         return {
@@ -957,7 +957,7 @@ window.closeModal = function(modalId) {
 /**
  * Sauvegarde une stratégie
  */
-window.saveStrategy = async function(strategyId) {
+/*window.saveStrategy = async function(strategyId) {
     const formData = {
         name: document.getElementById('strategyName')?.value,
         description: document.getElementById('strategyDescription')?.value,
@@ -993,7 +993,7 @@ window.saveStrategy = async function(strategyId) {
 /**
  * Édite une stratégie
  */
-window.editStrategy = async function(strategyId) {
+/*window.editStrategy = async function(strategyId) {
     try {
         const strategies = await window.api.getStrategies();
         const strategy = strategies.find(s => s.id === strategyId);
@@ -1008,7 +1008,7 @@ window.editStrategy = async function(strategyId) {
 /**
  * Supprime une stratégie
  */
-window.deleteStrategy = async function(strategyId) {
+/*window.deleteStrategy = async function(strategyId) {
     if (!confirm('Êtes-vous sûr de vouloir supprimer cette stratégie ?')) return;
     
     try {
@@ -1018,7 +1018,7 @@ window.deleteStrategy = async function(strategyId) {
     } catch (error) {
         window.notifications.negative('Erreur', 'Impossible de supprimer la stratégie');
     }
-};
+};*/
 
 /**
  * Voir détails d'un signal
