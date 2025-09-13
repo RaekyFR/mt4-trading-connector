@@ -451,10 +451,85 @@ if (dailyPnL < 0 && dailyLossPercent >= riskConfig.maxDailyLoss) {
     console.log(`[SignalProcessor] 📝 Erreur: ${error.message}`);
   }
 
+
+  /**
+ * Envoie un ordre à MT4 - MODIFIÉ pour gérer market vs limit
+ */
+async sendOrderToMT4(order, signal) {
+  try {
+    console.log(`[SignalProcessor] Début envoi ordre ${order.id} vers MT4`);
+    
+    // Récupérer les métadonnées du signal
+    const rawData = JSON.parse(signal.rawData);
+    const orderType = rawData.orderType;
+    
+    let command;
+    
+    if (signal.action === 'close') {
+      // Fermeture de position
+      const openOrder = await this.findOpenOrder(signal.symbol, signal.strategyId);
+      if (!openOrder || !openOrder.ticket) {
+        throw new Error('Aucune position ouverte à fermer');
+      }
+
+      command = {
+        id: `order-${order.id}`,
+        command: 'closeMarketOrder',
+        ticket: openOrder.ticket
+      };
+
+    } else if (orderType === 'LIMIT') {
+      // Ordre limite avec entry_price
+      command = {
+        id: `order-${order.id}`,
+        command: 'limitOrder',
+        symbol: order.symbol,
+        type: signal.action === 'buy' ? 'buy' : 'sell',
+        lot: order.lots,
+        price: signal.price, // entry_price du signal
+        sl: order.stopLoss,
+        tp: order.takeProfit,
+        comment: `Signal-${signal.id}`
+      };
+
+    } else { // orderType === 'MARKET'
+      // Ordre au marché (entry_price = 0 ou absent)
+      command = {
+        id: `order-${order.id}`,
+        command: 'marketOrder',
+        symbol: order.symbol,
+        type: signal.action === 'buy' ? 'buy' : 'sell',
+        lot: order.lots,
+        sl: order.stopLoss,
+        tp: order.takeProfit,
+        comment: `Signal-${signal.id}`
+      };
+    }
+
+    console.log(`[SignalProcessor] Commande construite (${orderType}):`, command);
+
+    // Timeout adapté selon le type d'ordre
+    const timeout = orderType === 'MARKET' ? 30000 : 20000;
+    
+    console.log(`[SignalProcessor] Envoi vers MT4Connector avec timeout ${timeout}ms...`);
+    
+    const result = await this.mt4Connector.sendCommand(command, timeout);
+    
+    console.log(`[SignalProcessor] Résultat MT4:`, result);
+    return result;
+
+  } catch (error) {
+    console.error(`[SignalProcessor] Erreur envoi MT4:`, error);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+}
   /**
    * Envoie un ordre à MT4
    */
-  async sendOrderToMT4(order, signal) {
+ /* async sendOrderToMT4(order, signal) {
   try {
     console.log(`[SignalProcessor] Début envoi ordre ${order.id} vers MT4`);
     let command;
@@ -521,7 +596,7 @@ if (dailyPnL < 0 && dailyLossPercent >= riskConfig.maxDailyLoss) {
     };
   }
 }
-
+*/
   /*async sendOrderToMT4(order, signal) {
     try {
       console.log(`[SignalProcessor] Début envoi ordre ${order.id} vers MT4`);
@@ -583,7 +658,7 @@ console.log(`[SignalProcessor] Commande construite:`, command);
       };
     }
   }*/
- 
+
 /*
  * Modification de handleOrderSuccess pour s'assurer que le signal est marqué PROCESSED
  */

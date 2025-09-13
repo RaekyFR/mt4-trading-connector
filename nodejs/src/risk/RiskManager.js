@@ -17,16 +17,20 @@ class RiskManager {
    * @param {Object} signal - Signal brut de TradingView
    * @returns {Object} Signal validé avec lot calculé ou erreur
    */
+
   /**
  * Valide et enrichit un signal avant traitement
- * @param {Object} signal - Signal brut de TradingView
- * @returns {Object} Signal validé avec lot calculé ou erreur
+ * MODIFIÉ pour gérer entry_price et current_price
  */
 async validateSignal(signal) {
   try {
     console.log(`[RiskManager] Validation du signal:`, signal);
 
-    // 1. Récupérer la stratégie (elle existe déjà, vérifiée dans webhook)
+    // 1. Déterminer le type d'ordre et le prix pour calculs
+    const { orderType, calculationPrice } = this.determineOrderTypeAndPrice(signal);
+    console.log(`[RiskManager] Type d'ordre détecté: ${orderType}, Prix pour calculs: ${calculationPrice}`);
+
+    // 2. Récupérer la stratégie
     const strategy = await this.prisma.strategy.findUnique({
       where: { name: signal.strategy },
       include: { riskConfigs: { where: { isActive: true } } }
@@ -36,10 +40,10 @@ async validateSignal(signal) {
       throw new Error(`Stratégie ${signal.strategy} inactive ou introuvable`);
     }
 
-    // 2. Récupérer la config de risk (de la stratégie ou globale)
+    // 3. Récupérer la config de risk
     const riskConfig = strategy.riskConfigs[0] || await this.getGlobalRiskConfig();
 
-    // 3. Vérifier uniquement les limites de perte quotidienne
+    // 4. Vérifier les limites de perte quotidienne
     const dailyPnL = await this.calculatePeriodPnL('day');
     const accountState = await this.getAccountState();
     const dailyLossPercent = Math.abs(dailyPnL / accountState.balance) * 100;
@@ -48,13 +52,183 @@ async validateSignal(signal) {
       throw new Error(`Limite de perte quotidienne atteinte: ${dailyLossPercent.toFixed(2)}% (max: ${riskConfig.maxDailyLoss}%)`);
     }
 
-    // 4. Vérifier les heures de trading si configurées
+    // 5. Vérifier les heures de trading
     const tradingHoursCheck = await this.isTradingAllowed(signal.symbol, riskConfig);
     if (!tradingHoursCheck.allowed) {
       throw new Error(`Trading non autorisé: ${tradingHoursCheck.reason}`);
     }
 
-    // 5. Calculer la taille de position
+    // 6. Calculer la taille de position avec le bon prix
+    const positionSize = await this.positionCalculator.calculateLotSize({
+      balance: accountState.balance,
+      symbol: signal.symbol,
+      stopLoss: signal.stopLoss,
+      entryPrice: calculationPrice, // Utiliser le prix approprié
+      riskPercent: strategy.defaultRiskPercent,
+      maxLotSize: strategy.maxLotSize
+    });
+
+    // 7. Vérifier les limites de lot
+    if (positionSize.lotSize > strategy.maxLotSize) {
+      throw new Error(`Lot calculé (${positionSize.lotSize}) dépasse la limite de la stratégie (${strategy.maxLotSize})`);
+    }
+
+    // 8. Calculer le Take Profit avec le bon prix
+    const takeProfit = await this.calculateTakeProfit(signal, strategy, calculationPrice);
+
+    // 9. Enregistrer le signal validé avec les métadonnées de type d'ordre
+    const validatedSignal = await this.prisma.signal.create({
+      data: {
+        strategyId: strategy.id,
+        action: signal.action,
+        symbol: signal.symbol,
+        price: signal.entry_price || null, // Prix cible (peut être null pour market)
+        stopLoss: signal.stopLoss,
+        takeProfit: takeProfit,
+        suggestedLot: signal.lot,
+        calculatedLot: positionSize.lotSize,
+        riskAmount: positionSize.riskAmount,
+        status: 'VALIDATED',
+        rawData: JSON.stringify({
+          ...signal,
+          orderType, // Ajouter le type d'ordre détecté
+          calculationPrice // Ajouter le prix utilisé pour les calculs
+        }),
+        source: signal.source || 'tradingview'
+      }
+    });
+
+    console.log(`[RiskManager] Signal validé - ID: ${validatedSignal.id}, Type: ${orderType}, Lot: ${positionSize.lotSize}, TP: ${takeProfit}`);
+
+    return {
+      success: true,
+      signal: validatedSignal,
+      orderType,
+      calculationPrice,
+      lotSize: positionSize.lotSize,
+      riskAmount: positionSize.riskAmount,
+      takeProfit: takeProfit,
+      riskRewardRatio: positionSize.riskRewardRatio
+    };
+
+  } catch (error) {
+    console.error(`[RiskManager] Erreur validation:`, error);
+    
+    // Enregistrer le signal rejeté
+    if (signal.strategy) {
+      const strategy = await this.prisma.strategy.findUnique({
+        where: { name: signal.strategy }
+      });
+      
+      if (strategy) {
+        await this.prisma.signal.create({
+          data: {
+            strategyId: strategy.id,
+            action: signal.action,
+            symbol: signal.symbol,
+            price: signal.entry_price || null,
+            stopLoss: signal.stopLoss,
+            status: 'REJECTED',
+            errorMessage: error.message,
+            rawData: JSON.stringify(signal),
+            source: signal.source || 'tradingview'
+          }
+        });
+      }
+    }
+
+    await this.logAudit('signal_rejected', 'signal', null, {
+      reason: error.message,
+      signal
+    }, 'WARNING');
+
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+}
+
+/**
+ * NOUVELLE MÉTHODE : Détermine le type d'ordre et le prix pour calculs
+ */
+determineOrderTypeAndPrice(signal) {
+  // Si entry_price est absent, 0, ou null → Ordre MARKET
+  if (!signal.entry_price || signal.entry_price === 0) {
+    if (!signal.current_price) {
+      throw new Error('current_price requis pour les ordres market');
+    }
+    return {
+      orderType: 'MARKET',
+      calculationPrice: signal.current_price
+    };
+  }
+  
+  // Sinon → Ordre LIMIT
+  return {
+    orderType: 'LIMIT',
+    calculationPrice: signal.entry_price
+  };
+}
+
+/**
+ * Calcule le Take Profit - MODIFIÉ pour accepter calculationPrice
+ */
+async calculateTakeProfit(signal, strategy, calculationPrice) {
+  const riskRewardRatio = strategy.riskRewardRatio || 2.0;
+  
+  if (!signal.stopLoss || !calculationPrice) {
+    return null;
+  }
+
+  const entryPrice = calculationPrice; // Utiliser le prix de calcul
+  const stopLoss = signal.stopLoss;
+  const riskDistance = Math.abs(entryPrice - stopLoss);
+  
+  let takeProfit;
+  if (signal.action === 'buy') {
+    takeProfit = entryPrice + (riskDistance * riskRewardRatio);
+  } else {
+    takeProfit = entryPrice - (riskDistance * riskRewardRatio);
+  }
+
+  return Math.round(takeProfit * 100000) / 100000;
+}
+
+  /*
+async validateSignal(signal) {
+  try {
+    console.log(`[RiskManager] Validation du signal:`, signal);
+
+    1. Récupérer la stratégie (elle existe déjà, vérifiée dans webhook)
+    const strategy = await this.prisma.strategy.findUnique({
+      where: { name: signal.strategy },
+      include: { riskConfigs: { where: { isActive: true } } }
+    });
+
+    if (!strategy || !strategy.isActive) {
+      throw new Error(`Stratégie ${signal.strategy} inactive ou introuvable`);
+    }
+
+    2. Récupérer la config de risk (de la stratégie ou globale)
+    const riskConfig = strategy.riskConfigs[0] || await this.getGlobalRiskConfig();
+
+    3. Vérifier uniquement les limites de perte quotidienne
+    const dailyPnL = await this.calculatePeriodPnL('day');
+    const accountState = await this.getAccountState();
+    const dailyLossPercent = Math.abs(dailyPnL / accountState.balance) * 100;
+
+    if (dailyPnL < 0 && dailyLossPercent >= riskConfig.maxDailyLoss) {
+      throw new Error(`Limite de perte quotidienne atteinte: ${dailyLossPercent.toFixed(2)}% (max: ${riskConfig.maxDailyLoss}%)`);
+    }
+
+    4. Vérifier les heures de trading si configurées
+    const tradingHoursCheck = await this.isTradingAllowed(signal.symbol, riskConfig);
+    if (!tradingHoursCheck.allowed) {
+      throw new Error(`Trading non autorisé: ${tradingHoursCheck.reason}`);
+    }
+
+    5. Calculer la taille de position
     const positionSize = await this.positionCalculator.calculateLotSize({
       balance: accountState.balance,
       symbol: signal.symbol,
@@ -64,15 +238,15 @@ async validateSignal(signal) {
       maxLotSize: strategy.maxLotSize
     });
 
-    // 6. Vérifier que le lot calculé respecte les limites de la stratégie
+    6. Vérifier que le lot calculé respecte les limites de la stratégie
     if (positionSize.lotSize > strategy.maxLotSize) {
       throw new Error(`Lot calculé (${positionSize.lotSize}) dépasse la limite de la stratégie (${strategy.maxLotSize})`);
     }
 
-    // 7. Calculer le Take Profit basé sur le Risk/Reward de la stratégie
+    7. Calculer le Take Profit basé sur le Risk/Reward de la stratégie
     const takeProfit = await this.calculateTakeProfit(signal, strategy, positionSize);
 
-    // 8. Enregistrer le signal validé
+    8. Enregistrer le signal validé
     const validatedSignal = await this.prisma.signal.create({
       data: {
         strategyId: strategy.id,
@@ -104,7 +278,7 @@ async validateSignal(signal) {
   } catch (error) {
     console.error(`[RiskManager] Erreur validation:`, error);
     
-    // Enregistrer le signal rejeté si possible
+    Enregistrer le signal rejeté si possible
     if (signal.strategy) {
       const strategy = await this.prisma.strategy.findUnique({
         where: { name: signal.strategy }
@@ -137,7 +311,7 @@ async validateSignal(signal) {
       error: error.message
     };
   }
-}
+}/*
   /*async validateSignal(signal) {
     try {
       console.log(`[RiskManager] Validation du signal:`, signal);
