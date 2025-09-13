@@ -12,6 +12,37 @@ class SignalProcessor {
     this.mt4Connector = new MT4Connector(config);
     this.processing = false;
     this.processInterval = null;
+
+        // Constantes pour la logique de retry
+    this.RETRYABLE_ERRORS = [
+      'timeout',
+      'file locked',
+      'mt4 non connecté',
+      'communication error',
+      'processing timeout',
+      'response timeout',
+      'fichier occupé',
+      'enoent', // Fichier non trouvé temporaire
+      'eacces'  // Accès refusé temporaire
+    ];
+
+    this.DEFINITIVE_MT4_ERRORS = [
+      '4109', // Trade not allowed
+      '4108', // Invalid volume
+      '4107', // Invalid price
+      '4106', // Invalid price
+      '134',  // Not enough money
+      '4051', // Invalid function parameter
+      '4052', // Invalid account
+      '4053', // Invalid trade operation request
+      '4054', // Invalid position ticket
+      '131',  // Invalid trade volume
+      '132',  // Market closed
+      '133',  // Trade disabled
+      '4110', // Long positions only allowed
+      '4111', // Short positions only allowed
+      '4200'  // Object already exists
+    ];
   }
 
   /**
@@ -41,6 +72,36 @@ class SignalProcessor {
       this.processInterval = null;
       console.log('[SignalProcessor] Arrêt du traitement');
     }
+  }
+
+  
+  /**
+   * Détermine si une erreur mérite un retry
+   */
+  shouldRetryError(error) {
+    const errorMsg = error.message.toLowerCase();
+    
+    console.log(`[SignalProcessor] Analyse erreur pour retry: "${error.message}"`);
+    
+    // 1. Vérifier les erreurs MT4 définitives (ne pas retry)
+    for (const mtError of this.DEFINITIVE_MT4_ERRORS) {
+      if (errorMsg.includes(mtError)) {
+        console.log(`[SignalProcessor] Erreur MT4 définitive détectée (${mtError}) - Pas de retry`);
+        return false;
+      }
+    }
+    
+    // 2. Vérifier les erreurs temporaires (retry autorisé)
+    for (const retryableError of this.RETRYABLE_ERRORS) {
+      if (errorMsg.includes(retryableError)) {
+        console.log(`[SignalProcessor] Erreur temporaire détectée (${retryableError}) - Retry autorisé`);
+        return true;
+      }
+    }
+    
+    // 3. Par défaut, autoriser 1 retry pour les erreurs inconnues
+    console.log(`[SignalProcessor] Erreur inconnue - 1 retry autorisé par sécurité`);
+    return true;
   }
 
   /**
@@ -157,8 +218,96 @@ class SignalProcessor {
   /**
    * Traite un signal individuel
    */
-
+/**
+   * Version modifiée de processSingleSignal avec retry sélectif
+   */
   async processSingleSignal(signal) {
+    console.log(`[SignalProcessor] Traitement signal ${signal.id}`);
+
+    try {
+      // 1. Validation du signal (comme avant)
+      const currentState = await this.riskManager.getAccountState();
+      const riskConfig = await this.getRiskConfig(signal.strategyId);
+
+      const dailyPnL = await this.riskManager.calculatePeriodPnL('day');
+      const dailyLossPercent = Math.abs(dailyPnL / currentState.balance) * 100;
+
+      if (dailyPnL < 0 && dailyLossPercent >= riskConfig.maxDailyLoss) {
+        throw new Error(`Limite de perte quotidienne atteinte: ${dailyLossPercent.toFixed(2)}%`);
+      }
+
+      // 2. Créer l'ordre dans la DB (comme avant)
+      const order = await this.prisma.order.create({
+        data: {
+          signalId: signal.id,
+          strategyId: signal.strategyId,
+          symbol: signal.symbol,
+          type: this.convertSignalType(signal.action, signal.price),
+          lots: signal.calculatedLot || 0.01,
+          stopLoss: signal.stopLoss,
+          takeProfit: signal.takeProfit,
+          status: 'SENDING',
+          riskAmount: signal.riskAmount,
+          riskPercent: (signal.riskAmount / currentState.balance) * 100
+        }
+      });
+
+      // 3. NOUVELLE LOGIQUE : Retry sélectif
+      console.log(`[SignalProcessor] Envoi ordre ${order.id} - Début timer`);
+      const startTime = Date.now();
+
+      let mt4Result = null;
+      let retryCount = 0;
+      const maxRetries = 2;
+      let lastError = null;
+
+      while (retryCount <= maxRetries && !mt4Result?.success) {
+        if (retryCount > 0) {
+          // Vérifier si l'erreur précédente mérite un retry
+          if (!this.shouldRetryError(lastError)) {
+            console.log(`[SignalProcessor] Arrêt des tentatives pour ordre ${order.id} - Erreur définitive`);
+            break;
+          }
+          
+          console.log(`[SignalProcessor] Retry ${retryCount}/${maxRetries} pour ordre ${order.id}`);
+          await this.sleep(1000 * retryCount); // Progressive backoff
+        }
+
+        try {
+          mt4Result = await this.sendOrderToMT4(order, signal);
+          
+          if (mt4Result?.success) {
+            console.log(`[SignalProcessor] Succès ordre ${order.id} après ${retryCount} tentatives`);
+            break;
+          } else {
+            lastError = new Error(mt4Result?.error || 'Erreur inconnue');
+          }
+        } catch (error) {
+          lastError = error;
+          console.log(`[SignalProcessor] Erreur tentative ${retryCount}: ${error.message}`);
+        }
+        
+        retryCount++;
+      }
+
+      const duration = Date.now() - startTime;
+      console.log(`[SignalProcessor] Ordre ${order.id} traité en ${duration}ms, succès: ${mt4Result?.success}`);
+
+      // 4. Mettre à jour selon le résultat final
+      if (mt4Result?.success) {
+        await this.handleOrderSuccess(order, mt4Result, signal);
+      } else {
+        // Utiliser la dernière erreur rencontrée
+        await this.handleOrderError(order, lastError?.message || 'Erreur inconnue après tous les retries', signal);
+      }
+
+    } catch (error) {
+      console.error(`[SignalProcessor] Erreur signal ${signal.id}:`, error);
+      await this.handleSignalError(signal, error);
+    }
+  }
+
+ /* async processSingleSignal(signal) {
   console.log(`[SignalProcessor] Traitement signal ${signal.id}`);
 
   try {
@@ -228,7 +377,7 @@ class SignalProcessor {
     console.error(`[SignalProcessor] Erreur signal ${signal.id}:`, error);
     await this.handleSignalError(signal, error);
   }
-}
+}*/
 
   /*
   async processSingleSignal(signal) {
@@ -289,6 +438,18 @@ if (dailyPnL < 0 && dailyLossPercent >= riskConfig.maxDailyLoss) {
       await this.handleSignalError(signal, error);
     }
   }*/
+
+    /**
+   * Méthode helper pour logging détaillé des retries
+   */
+  logRetryDecision(error, willRetry, reason) {
+    if (willRetry) {
+      console.log(`[SignalProcessor] 🔄 RETRY autorisé - ${reason}`);
+    } else {
+      console.log(`[SignalProcessor] ❌ RETRY refusé - ${reason}`);
+    }
+    console.log(`[SignalProcessor] 📝 Erreur: ${error.message}`);
+  }
 
   /**
    * Envoie un ordre à MT4
@@ -422,100 +583,131 @@ console.log(`[SignalProcessor] Commande construite:`, command);
       };
     }
   }*/
+ 
+/*
+ * Modification de handleOrderSuccess pour s'assurer que le signal est marqué PROCESSED
+ */
+async handleOrderSuccess(order, mt4Result, signal) {
+  // Mettre à jour l'ordre
+  await this.prisma.order.update({
+    where: { id: order.id },
+    data: {
+      ticket: mt4Result.ticket,
+      status: 'PLACED',
+      openPrice: mt4Result.price,
+      openTime: new Date(),
+      mt4Status: 'success'
+    }
+  });
 
-  /**
-   * Gère le succès d'un ordre
-   */
-  async handleOrderSuccess(order, mt4Result, signal) {
-    // Mettre à jour l'ordre
-    await this.prisma.order.update({
-      where: { id: order.id },
-      data: {
+  // CORRECTION : Toujours marquer le signal comme PROCESSED en cas de succès
+  await this.prisma.signal.update({
+    where: { id: signal.id },
+    data: {
+      status: 'PROCESSED',
+      processedAt: new Date()
+    }
+  });
+
+  // Logger le succès
+  await this.prisma.auditLog.create({
+    data: {
+      action: 'order_placed',
+      entityType: 'order',
+      entityId: order.id,
+      details: JSON.stringify({
         ticket: mt4Result.ticket,
-        status: 'PLACED',
-        openPrice: mt4Result.price,
-        openTime: new Date(),
-        mt4Status: 'success'
-      }
-    });
+        price: mt4Result.price,
+        lots: order.lots
+      }),
+      severity: 'INFO'
+    }
+  });
 
-    // Mettre à jour le signal
+  console.log(`[SignalProcessor] ✅ Signal ${signal.id} marqué PROCESSED - Ordre placé: Ticket ${mt4Result.ticket}`);
+}
+
+ /**
+ * Modification de handleOrderError pour mettre à jour le statut du signal
+ */
+async handleOrderError(order, error, signal) {
+  // Mettre à jour l'ordre
+  await this.prisma.order.update({
+    where: { id: order.id },
+    data: {
+      status: 'ERROR',
+      errorMessage: error,
+      mt4Status: 'error'
+    }
+  });
+
+  // Incrémenter le compteur de retry si applicable
+  const updatedOrder = await this.prisma.order.update({
+    where: { id: order.id },
+    data: {
+      retryCount: { increment: 1 }
+    }
+  });
+
+  // CORRECTION PRINCIPALE : Toujours mettre à jour le statut du signal
+  
+  // Différencier les erreurs MT4 des erreurs techniques
+  const isDefinitiveMT4Error = this.DEFINITIVE_MT4_ERRORS.some(code => 
+    error.toLowerCase().includes(code)
+  );
+
+  if (isDefinitiveMT4Error) {
+    // Erreur MT4 définitive → Signal en ERROR immédiatement
     await this.prisma.signal.update({
       where: { id: signal.id },
       data: {
-        status: 'PROCESSED',
+        status: 'ERROR',
+        errorMessage: `Erreur MT4 définitive: ${error}`,
         processedAt: new Date()
       }
     });
-
-    // Logger le succès
-    await this.prisma.auditLog.create({
-      data: {
-        action: 'order_placed',
-        entityType: 'order',
-        entityId: order.id,
-        details: JSON.stringify({
-          ticket: mt4Result.ticket,
-          price: mt4Result.price,
-          lots: order.lots
-        }),
-        severity: 'INFO'
-      }
-    });
-
-    console.log(`[SignalProcessor] ✅ Ordre placé: Ticket ${mt4Result.ticket}`);
-  }
-
-  /**
-   * Gère l'erreur d'un ordre
-   */
-  async handleOrderError(order, error, signal) {
-    // Mettre à jour l'ordre
-    await this.prisma.order.update({
-      where: { id: order.id },
+    
+    console.log(`[SignalProcessor] Signal ${signal.id} marqué ERROR (erreur MT4 définitive)`);
+    
+  } else if (updatedOrder.retryCount >= 3) {
+    // Trop de tentatives → Signal en ERROR
+    await this.prisma.signal.update({
+      where: { id: signal.id },
       data: {
         status: 'ERROR',
-        errorMessage: error,
-        mt4Status: 'error'
+        errorMessage: `Échec après ${updatedOrder.retryCount} tentatives: ${error}`,
+        processedAt: new Date()
       }
     });
-
-    // Incrémenter le compteur de retry si applicable
-    const updatedOrder = await this.prisma.order.update({
+    
+    console.log(`[SignalProcessor] Signal ${signal.id} marqué ERROR (trop de tentatives)`);
+    
+  } else {
+    // Erreur technique → Remettre l'ordre en PENDING pour retry
+    await this.prisma.order.update({
       where: { id: order.id },
-      data: {
-        retryCount: { increment: 1 }
-      }
+      data: { status: 'PENDING' }
     });
-
-    // Si moins de 3 essais, remettre en PENDING pour retry
-    if (updatedOrder.retryCount < 3) {
-      await this.prisma.order.update({
-        where: { id: order.id },
-        data: { status: 'PENDING' }
-      });
-    } else {
-      // Marquer le signal comme en erreur après 3 essais
-      await this.prisma.signal.update({
-        where: { id: signal.id },
-        data: {
-          status: 'ERROR',
-          errorMessage: `Échec après ${updatedOrder.retryCount} tentatives: ${error}`
-        }
-      });
-    }
-
-    // Logger l'erreur
-    await this.prisma.auditLog.create({
-      data: {
-        action: 'order_error',
-        entityType: 'order',
-        entityId: order.id,
-        details: JSON.stringify({ error, retryCount: updatedOrder.retryCount }),
-        severity: 'ERROR'
-      }
-    });
+    
+    // Signal reste VALIDATED pour retry ultérieur
+    console.log(`[SignalProcessor] Signal ${signal.id} garde statut VALIDATED pour retry`);
   }
+
+  // Logger l'erreur
+  await this.prisma.auditLog.create({
+    data: {
+      action: 'order_error',
+      entityType: 'order',
+      entityId: order.id,
+      details: JSON.stringify({ 
+        error, 
+        retryCount: updatedOrder.retryCount,
+        signalStatus: isDefinitiveMT4Error ? 'ERROR' : 'VALIDATED'
+      }),
+      severity: 'ERROR'
+    }
+  });
+}
 
   /**
    * Gère l'erreur d'un signal
