@@ -17,7 +17,8 @@ class TradingServer {
     this.prisma = new PrismaClient();
     this.mt4Connector = new MT4Connector(config.mt4);
     this.signalProcessor = new SignalProcessor(config.mt4);
-    this.riskManager = new RiskManager();
+    //this.riskManager = new RiskManager();
+    this.riskManager = new RiskManager(this.mt4Connector);
     this.server = null;
   }
 
@@ -79,6 +80,16 @@ class TradingServer {
     try {
       await this.mt4Connector.start();
       console.log('[Server] ✅ MT4 Connector démarré');
+      try {
+        const accountState = await this.riskManager.getAccountState();
+        console.log('[Server] 📊 État du compte récupéré:', {
+          balance: accountState.balance,
+          freeMargin: accountState.freeMargin,
+          source: accountState.source
+        });
+      } catch (accountError) {
+        console.warn('[Server] ⚠️ Impossible de récupérer l\'état du compte:', accountError.message);
+      }
     } catch (error) {
       console.error('[Server] ❌ Erreur MT4 Connector:', error);
       // Continuer même si MT4 n'est pas disponible
