@@ -328,8 +328,8 @@ router.get('/test', (req, res) => {
               <option value="EURUSD">EURUSD</option>
               <option value="GBPUSD">GBPUSD</option>
               <option value="XAUUSD">XAUUSD (Gold)</option>
-              <option value="NAS100">NAS100 (NASDAQ)</option>
-              <option value="US500">US500 (S&P500)</option>
+              <option value="US100.cash">NAS100 (NASDAQ)</option>
+              <option value="US500.cash">US500 (S&P500)</option>
             </select>
           </div>
         </div>
@@ -423,7 +423,7 @@ router.get('/test', (req, res) => {
           nasdaq: {
             signal: 'INDEX_TRADE',
             direction: 'SELL',
-            symbol: 'NAS100',
+            symbol: 'US100.cash',
             entry_price: 0,
             current_price: 16000,
             stop_loss: 16200,
@@ -432,7 +432,7 @@ router.get('/test', (req, res) => {
           sp500: {
             signal: 'INDEX_TRADE',
             direction: 'BUY',
-            symbol: 'US500',
+            symbol: 'US500.cash',
             entry_price: 4480,
             current_price: 4500,
             stop_loss: 4450,

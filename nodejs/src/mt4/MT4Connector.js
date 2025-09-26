@@ -1,4 +1,4 @@
-// MT4Connector simplifié - Version avec support complet pour le levier
+// MT4Connector simplifié - Version corrigée
 const fs = require('fs').promises;
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
@@ -131,22 +131,20 @@ class MT4Connector {
   }
 
   /**
-   * NOUVEAU: Récupère les informations complètes du compte
+   * ✅ CORRIGÉ: Méthode principale getBalance() qui appelle MT4
    */
-  async getAccountInfo() {
-    const result = await this.sendCommand({ command: 'getAccountInfo' });
+  async getBalance() {
+    const result = await this.sendCommand({ command: 'getBalance' });
     
     // Mettre en cache les informations
     this.lastAccountInfo = {
       balance: result.balance || 0,
       equity: result.equity || 0,
       margin: result.margin || 0,
-      freeMargin: result.freeMargin || result.free_margin || 0, // Support des deux formats
-      marginLevel: result.marginLevel || result.margin_level || 0,
+      freeMargin: result.freeMargin || 0,
+      marginLevel: result.marginLevel || 0,
       currency: result.currency || 'USD',
       leverage: result.leverage || 30, // Levier par défaut
-      accountNumber: result.accountNumber || result.account_number,
-      broker: result.broker || 'Unknown',
       timestamp: new Date()
     };
     
@@ -155,15 +153,21 @@ class MT4Connector {
     console.log('[MT4Connector] Infos compte récupérées:', {
       balance: this.lastAccountInfo.balance,
       equity: this.lastAccountInfo.equity,
-      freeMargin: this.lastAccountInfo.freeMargin,
-      leverage: this.lastAccountInfo.leverage
+      freeMargin: this.lastAccountInfo.freeMargin
     });
     
-    return this.lastAccountInfo;
+    return {
+      success: true,
+      balance: this.lastAccountInfo.balance,
+      equity: this.lastAccountInfo.equity,
+      margin: this.lastAccountInfo.margin,
+      freeMargin: this.lastAccountInfo.freeMargin,
+      marginLevel: this.lastAccountInfo.marginLevel
+    };
   }
 
   /**
-   * NOUVEAU: Rafraîchit les infos de compte si nécessaire
+   * ✅ CORRIGÉ: Rafraîchit les infos de compte si nécessaire
    */
   async refreshAccountInfo(forceRefresh = false) {
     const now = Date.now();
@@ -175,7 +179,8 @@ class MT4Connector {
     }
     
     try {
-      return await this.getAccountInfo();
+      const balanceResult = await this.getBalance();
+      return this.lastAccountInfo; // getBalance() met déjà à jour le cache
     } catch (error) {
       console.warn('[MT4Connector] Impossible de rafraîchir les infos compte:', error.message);
       return this.lastAccountInfo; // Retourner le cache si disponible
@@ -183,32 +188,18 @@ class MT4Connector {
   }
 
   /**
-   * NOUVEAU: Retourne les infos de compte (avec cache intelligent)
+   * Retourne les infos de compte (avec cache intelligent)
    */
   async getCachedAccountInfo() {
     if (!this.lastAccountInfo) {
-      return await this.refreshAccountInfo();
+      await this.refreshAccountInfo();
     }
     
     return this.lastAccountInfo;
   }
 
   /**
-   * Méthode legacy pour compatibilité - utilise maintenant getAccountInfo()
-   */
-  async getBalance() {
-    const accountInfo = await this.refreshAccountInfo();
-    return {
-      success: true,
-      balance: accountInfo.balance,
-      equity: accountInfo.equity,
-      margin: accountInfo.margin,
-      freeMargin: accountInfo.freeMargin
-    };
-  }
-
-  /**
-   * NOUVEAU: Place un ordre avec gestion optimisée du levier
+   * Place un ordre market avec gestion optimisée du levier
    */
   async placeMarketOrder(params) {
     const command = {
@@ -231,7 +222,7 @@ class MT4Connector {
 
     const result = await this.sendCommand(command, 30000); // 30s pour les ordres
     
-    // NOUVEAU: Rafraîchir les infos de compte après un ordre
+    // Rafraîchir les infos de compte après un ordre
     if (result.success) {
       setTimeout(() => {
         this.refreshAccountInfo(true).catch(err => 
@@ -244,32 +235,7 @@ class MT4Connector {
   }
 
   /**
-   * NOUVEAU: Place un ordre limite
-   */
-  async placeLimitOrder(params) {
-    const command = {
-      command: 'limitOrder',
-      symbol: params.symbol,
-      type: params.type,
-      lot: params.lots,
-      price: params.price,
-      sl: params.stopLoss,
-      tp: params.takeProfit,
-      comment: params.comment || ''
-    };
-
-    console.log(`[MT4Connector] Placement ordre limite:`, {
-      symbol: params.symbol,
-      type: params.type,
-      lot: params.lots,
-      price: params.price
-    });
-
-    return await this.sendCommand(command, 30000);
-  }
-
-  /**
-   * Récupère les ordres ouverts (inchangé)
+   * Récupère les ordres ouverts
    */
   async getOpenOrders() {
     const result = await this.sendCommand({ command: 'getAllMarketOrders' });
@@ -277,7 +243,7 @@ class MT4Connector {
   }
 
   /**
-   * Ferme un ordre (inchangé)
+   * Ferme un ordre
    */
   async closeOrder(ticket) {
     const result = await this.sendCommand({
@@ -298,7 +264,7 @@ class MT4Connector {
   }
 
   /**
-   * Modifie un ordre (inchangé)
+   * Modifie un ordre
    */
   async modifyOrder(ticket, stopLoss = 0, takeProfit = 0) {
     return await this.sendCommand({
@@ -310,81 +276,11 @@ class MT4Connector {
   }
 
   /**
-   * NOUVEAU: Calcule la marge requise pour une position
-   */
-  async calculateMarginRequirement(symbol, lotSize, price) {
-    try {
-      const result = await this.sendCommand({
-        command: 'calculateMargin',
-        symbol: symbol,
-        lot: lotSize,
-        price: price
-      });
-      
-      return result.marginRequired || 0;
-    } catch (error) {
-      console.warn(`[MT4Connector] Impossible de calculer marge via MT4:`, error.message);
-      
-      // Calcul approximatif basé sur les infos de compte
-      const accountInfo = await this.getCachedAccountInfo();
-      const positionValue = lotSize * price * this.getContractSize(symbol);
-      return positionValue / (accountInfo.leverage || 30);
-    }
-  }
-
-  /**
-   * NOUVEAU: Obtient la taille de contrat pour un symbole
-   */
-  getContractSize(symbol) {
-    const contractSizes = {
-      'BTCUSD': 1,
-      'EURUSD': 100000,
-      'GBPUSD': 100000,
-      'USDJPY': 100000,
-      'XAUUSD': 100,
-      'NAS100': 1,
-      'US500': 1,
-      'SPX500': 1
-    };
-    
-    return contractSizes[symbol] || 100000;
-  }
-
-  /**
-   * NOUVEAU: Vérifie si une position peut être ouverte avec la marge disponible
-   */
-  async canOpenPosition(symbol, lotSize, price) {
-    try {
-      const accountInfo = await this.refreshAccountInfo();
-      const marginRequired = await this.calculateMarginRequirement(symbol, lotSize, price);
-      
-      const canOpen = marginRequired <= accountInfo.freeMargin * 0.9; // 10% de sécurité
-      
-      console.log(`[MT4Connector] Vérification position ${symbol}:`, {
-        lotSize,
-        marginRequired: marginRequired.toFixed(2),
-        freeMargin: accountInfo.freeMargin.toFixed(2),
-        canOpen
-      });
-      
-      return {
-        canOpen,
-        marginRequired,
-        freeMargin: accountInfo.freeMargin,
-        marginAfter: accountInfo.freeMargin - marginRequired
-      };
-    } catch (error) {
-      console.error('[MT4Connector] Erreur vérification position:', error);
-      return { canOpen: false, error: error.message };
-    }
-  }
-
-  /**
    * Vérification de connexion améliorée
    */
   async checkConnection() {
     try {
-      await this.refreshAccountInfo();
+      await this.getBalance();
       this.isConnected = true;
       return true;
     } catch (error) {
@@ -394,46 +290,8 @@ class MT4Connector {
     }
   }
 
-  /**
-   * NOUVEAU: Obtient des statistiques détaillées du compte
-   */
-  async getAccountStats() {
-    try {
-      const accountInfo = await this.refreshAccountInfo();
-      const openOrders = await this.getOpenOrders();
-      
-      const stats = {
-        account: accountInfo,
-        positions: {
-          count: openOrders.length,
-          totalLots: openOrders.reduce((sum, order) => sum + (order.lot || 0), 0),
-          symbols: [...new Set(openOrders.map(order => order.symbol))]
-        },
-        margins: {
-          used: accountInfo.margin,
-          free: accountInfo.freeMargin,
-          level: accountInfo.marginLevel,
-          usagePercent: accountInfo.margin > 0 ? 
-            ((accountInfo.margin / accountInfo.equity) * 100).toFixed(2) : 0
-        },
-        risk: {
-          drawdown: accountInfo.balance > 0 ? 
-            (((accountInfo.balance - accountInfo.equity) / accountInfo.balance) * 100).toFixed(2) : 0,
-          equityPercent: accountInfo.balance > 0 ? 
-            ((accountInfo.equity / accountInfo.balance) * 100).toFixed(2) : 100
-        }
-      };
-      
-      return stats;
-    } catch (error) {
-      console.error('[MT4Connector] Erreur statistiques compte:', error);
-      return null;
-    }
-  }
+  // ... Toutes vos méthodes utilitaires existantes (waitForFileAvailable, waitForResponse, fileExists, sleep, cleanup) ...
 
-  /**
-   * Attendre que le fichier command soit disponible (inchangé)
-   */
   async waitForFileAvailable(maxWait = 5000) {
     const startTime = Date.now();
     
@@ -452,9 +310,6 @@ class MT4Connector {
     throw new Error('Timeout attente fichier command libre');
   }
 
-  /**
-   * Attendre la réponse de MT4 (inchangé)
-   */
   async waitForResponse(commandId, maxWait = 14000) {
     const startTime = Date.now();
     
@@ -499,9 +354,6 @@ class MT4Connector {
     throw new Error(`Timeout attente réponse pour ${commandId}`);
   }
 
-  /**
-   * Helpers (inchangés)
-   */
   async fileExists(filepath) {
     try {
       await fs.access(filepath);
